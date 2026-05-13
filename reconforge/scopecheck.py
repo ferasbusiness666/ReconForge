@@ -75,11 +75,18 @@ def check_targets(targets_file: str, scope_file: str) -> Dict[str, object]:
     targets, target_errors = read_entries(targets_file)
     scopes, scope_errors = read_entries(scope_file)
     errors = target_errors + scope_errors
-    in_scope = []
-    out_of_scope = []
 
     if errors:
-        return {"in_scope": in_scope, "out_of_scope": out_of_scope, "errors": errors}
+        return {"in_scope": [], "out_of_scope": [], "errors": errors}
+
+    return evaluate_targets(targets, scopes)
+
+
+def evaluate_targets(targets: List[str], scopes: List[str]) -> Dict[str, object]:
+    """Compare target entries against scope entries and separate safe results."""
+    errors: List[str] = []
+    in_scope = []
+    out_of_scope = []
 
     for target in targets:
         if not normalize_host(target):

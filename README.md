@@ -8,111 +8,133 @@
 |_| \_\_____\____\___/|_| \_|_|   \___/|_| \_\\____|_____|
 ```
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](#installation)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
-[![Stars](https://img.shields.io/github/stars/example/reconforge?style=social)](#reconforge)
-
-**AI-assisted recon toolkit for bug bounty hunters**
-
-ReconForge combines practical recon automation with AI triage prompts so authorized testers can move from raw findings to prioritized hypotheses faster.
+ReconForge is a lightweight AI-assisted recon toolkit for authorized bug bounty and security testing. It collects first-pass recon data, keeps output readable, and includes AI triage prompts without adding exploit automation or aggressive defaults.
 
 ## Features
 
-- 🔎 **Subdomain discovery** from certificate transparency data via crt.sh.
-- 🚪 **Common port scanning** for 80, 443, 8080, 8443, 22, 21, 3306, and 6379.
-- 🧬 **Technology detection** from HTTP headers, cookies, security headers, CDN hints, and lightweight body signals.
-- 🧭 **Scope checking** for exact hosts, wildcard domains, IP addresses, and CIDR ranges.
-- 📄 **Markdown reports** with subdomains, open ports, banners, technology fingerprints, and collection notes.
-- 🤖 **AI triage prompts** for HTTP responses, auth flows, JavaScript, APIs, sensitive endpoints, and prioritization.
-- 🎨 **Rich terminal output** with tables, status indicators, and progress spinners.
+- Subdomain discovery from public sources: crt.sh, HackerTarget hostsearch, and Cert Spotter.
+- Common TCP port checks for 80, 443, 8080, 8443, 22, 21, 3306, and 6379.
+- Clear port statuses: `open`, `closed`, `filtered/timeout`, and `error`.
+- HTTP technology detection from headers, cookies, security headers, CDN hints, and light body fingerprints.
+- Scope checking for exact hosts, wildcard domains, IP addresses, and CIDR ranges.
+- GitHub repository recon from the public GitHub API, with optional `GITHUB_TOKEN` support.
+- HTTP/HTTPS probing for saved host lists.
+- Markdown reports with collection notes when providers fail.
+- Optional JSON output for automation.
+- Optional scope notes in markdown reports.
+- Optional scan profiles and custom port lists.
+- AI-ready report summaries without requiring an AI API key.
+- Rich terminal tables with Windows-safe status lines.
 
 ## Installation
 
-### Install with pip from a local checkout
+### Option A: Normal CLI Install With pipx
 
-```bash
-git clone https://github.com/example/reconforge.git
-cd reconforge
-python -m pip install .
+Use this when you want `reconforge` to keep working after closing CMD or PowerShell without manually activating `.venv`.
+
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath
+pipx install .
+reconforge --help
 ```
 
-### Development install
+If your Python Scripts directory is not on PATH, you can still run:
+
+```powershell
+py -m reconforge --help
+```
+
+Linux/macOS:
 
 ```bash
-git clone https://github.com/example/reconforge.git
-cd reconforge
-python -m pip install -r requirements.txt
-python -m pip install -e .
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+pipx install .
+reconforge --help
 ```
+
+### Option B: Optional Isolated Dev Install
+
+`.venv` is optional. Use it when you want project dependencies isolated from your main Python install.
+
+```powershell
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+reconforge --help
+```
+
+If you use `.venv`, activate it again in every new CMD or PowerShell session before running `reconforge`:
+
+```powershell
+.venv\Scripts\activate
+```
+
+If you do not want to activate `.venv` after closing CMD, use Option A instead.
+
+### Troubleshooting: `reconforge` Is Not Recognized
+
+If Windows prints `'reconforge' is not recognized`:
+
+- Make sure installation completed without errors.
+- If using pipx, try `pipx ensurepath`, then open a new terminal.
+- Try reinstalling from the project folder: `py -m pip install -e .`
+- Try the module entrypoint: `py -m reconforge --help`
+- Check that your Python Scripts directory is on PATH.
+- If you installed inside `.venv`, activate it first: `.venv\Scripts\activate`
 
 ## Usage
 
-### Discover subdomains
+### Discover Subdomains
 
-```bash
+```powershell
 reconforge subdomains -d example.com
+reconforge subdomains -d example.com --json
+reconforge subdomains -d example.com --output subdomains.txt
 ```
 
-Sample output:
+### Scan Common Ports
 
-```text
-       Subdomains for example.com
-┏━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ #  ┃ Subdomain         ┃
-┡━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ 1  │ api.example.com   │
-│ 2  │ login.example.com │
-│ 3  │ www.example.com   │
-└────┴───────────────────┘
-Total: 3
+```powershell
+reconforge portscan -t example.com
+reconforge portscan -t example.com --profile normal
+reconforge portscan -t example.com --profile deep
+reconforge portscan -t example.com --ports 80,443,3000
+reconforge portscan -t example.com --json
 ```
 
-### Scan common ports
+Profiles:
 
-```bash
-reconforge portscan -t sub.example.com
+- `safe`: small default list.
+- `normal`: adds common app/dev ports.
+- `deep`: larger bounded common-service list. This is opt-in and is not a full port range scan.
+
+### Detect Technologies
+
+```powershell
+reconforge techdetect -u https://example.com
+reconforge techdetect -u https://example.com --json
+reconforge techdetect -u https://example.com --output tech.json
 ```
 
-Sample output:
+### Probe HTTP/HTTPS
 
-```text
-            Port scan for sub.example.com
-┏━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Port ┃ Status    ┃ Banner / Note                   ┃
-┡━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│   80 │ 🟢 open   │ HTTP/1.1 301 Moved Permanently  │
-│  443 │ 🟢 open   │ No banner                       │
-│ 8080 │ 🔴 closed │ Connection refused              │
-└──────┴───────────┴─────────────────────────────────┘
+```powershell
+reconforge httpprobe -i subdomains.txt
+reconforge httpprobe -i subdomains.txt --json
+reconforge httpprobe -i subdomains.txt --output http.json
 ```
 
-### Detect technologies
+This checks HTTP/HTTPS reachability only. It does not crawl or brute-force paths.
 
-```bash
-reconforge techdetect -u https://sub.example.com
-```
+### Check Scope
 
-Sample output:
-
-```text
-Final URL: https://sub.example.com/
-HTTP status: 200
-
-Detected Technologies
-┏━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Technology              ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ nginx                   │
-│ HSTS                    │
-│ Content Security Policy │
-└─────────────────────────┘
-```
-
-### Check scope
-
-```bash
+```powershell
 reconforge scopecheck -t targets.txt -s scope.txt
+reconforge scopecheck -t targets.txt -s scope.txt --json
+reconforge scopecheck -t targets.txt -s scope.txt --output scope.json
 ```
 
 Example `scope.txt`:
@@ -123,55 +145,103 @@ example.com
 192.0.2.0/24
 ```
 
-Sample output:
+### GitHub Repository Recon
 
-```text
-In-Scope Targets
-┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Target            ┃ Reason                     ┃
-┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ api.example.com   │ matched wildcard *.example.com │
-└───────────────────┴────────────────────────────┘
+Owner or organization mode:
 
-Out-of-Scope Targets
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Target             ┃ Reason                ┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
-│ thirdparty.net     │ no scope rule matched │
-└────────────────────┴───────────────────────┘
+```powershell
+reconforge github -o microsoft
+reconforge github -o microsoft --json
+reconforge github -o microsoft --output github.json
 ```
 
-### Generate a report
+Repo-specific mode:
 
-```bash
-reconforge report -d example.com --output report.md
+```powershell
+reconforge github -o microsoft -r vscode
+reconforge github -o microsoft -r vscode --json
 ```
 
-Sample output:
+ReconForge works without authentication for public repositories. For higher GitHub API limits, set `GITHUB_TOKEN` in your environment. ReconForge uses the token only in the API header and never prints it.
 
-```text
-Report written: report.md
+### Generate a Report
+
+```powershell
+reconforge report -d example.com --output reports/example.md
 ```
 
-See [`examples/example_report.md`](examples/example_report.md) for a realistic sample report.
+Include GitHub recon:
 
-## Why ReconForge?
+```powershell
+reconforge report -d example.com --github-owner example --output reports/example.md
+```
 
-### Avoid out-of-scope mistakes
+Include one GitHub repo:
 
-Bug bounty scope can include exact hosts, wildcard subdomains, and IP ranges while excluding adjacent third-party systems. ReconForge's scope checker separates in-scope and out-of-scope targets before testing so you can fail safely and document why a target was included or excluded.
+```powershell
+reconforge report -d example.com --github-owner microsoft --github-repo vscode --output reports/example.md
+```
 
-### Reduce manual recon time waste
+Include scope notes:
 
-Manual recon often means jumping between CT logs, socket checks, browser tabs, notes, and markdown templates. ReconForge gives you a small, auditable workflow for common first-pass tasks and produces tables that are easy to copy into notes or reports.
+```powershell
+reconforge report -d example.com --scope scope.txt --output reports/example.md
+```
 
-### Bring AI into recon without replacing judgment
+Print a JSON summary while still writing the markdown report:
 
-ReconForge includes model-agnostic AI triage prompts that help analyze HTTP responses, unusual headers, auth flows, sensitive endpoints, JavaScript, API behavior, parameter anomalies, and prioritization. The prompts are designed to turn raw evidence into next-step hypotheses while keeping final validation in the tester's hands.
+```powershell
+reconforge report -d example.com --output reports/example.md --json
+```
+
+Build a markdown report from saved JSON findings:
+
+```powershell
+reconforge report --from-json recon.json --output reports/example.md
+```
+
+The report command creates missing output folders automatically and writes collection errors under `Collection Notes` instead of crashing.
+
+### Create an AI-Ready Summary
+
+```powershell
+reconforge summarize --report reports/example.md
+reconforge summarize --report reports/example.md --output prompt-summary.txt
+reconforge summarize --report reports/example.md --json
+```
+
+This does not call an AI API. It creates a compact text summary you can paste into your own AI tool after removing anything sensitive.
+
+### Config File
+
+ReconForge can read optional defaults from `reconforge.json` in the current folder.
+
+```json
+{
+  "portscan": {
+    "profile": "normal",
+    "ports": [80, 443, 3000],
+    "timeout": 2.0
+  }
+}
+```
+
+Command-line options override config values.
+
+## GitHub Recon Notes
+
+GitHub recon collects public metadata only:
+
+- Repository name, description, URL, stars, forks, language, default branch, updated date.
+- Archived, private, and fork flags when available from the API.
+- Interesting files such as `README.md`, `package.json`, `requirements.txt`, `pyproject.toml`, `Dockerfile`, `docker-compose.yml`, `.env.example`, and `.github/workflows/*.yml`.
+- Basic tech and recon notes such as Docker usage, CI/CD workflows, environment examples, Python/Node/Rust/Go indicators, frontend framework indicators, and possible deployment files.
+
+ReconForge does not claim vulnerabilities from metadata alone. Treat these notes as leads to validate manually.
 
 ## AI Triage Prompts
 
-The prompt library lives in [`prompts/ai_triage.md`](prompts/ai_triage.md). Use it when you need a structured second pass over:
+The prompt library lives in `prompts/ai_triage.md`. Use it for a structured second pass over:
 
 - HTTP responses and headers.
 - Authentication, SSO, MFA, and session flows.
@@ -181,40 +251,48 @@ The prompt library lives in [`prompts/ai_triage.md`](prompts/ai_triage.md). Use 
 - Parameter behavior and anomaly triage.
 - Finding prioritization and report drafting.
 
-Always remove secrets, tokens, personal data, and proprietary content before pasting material into any AI system.
+Remove secrets, tokens, personal data, and proprietary content before pasting material into any AI system.
 
 ## Project Structure
 
 ```text
 reconforge/
   __init__.py
+  __main__.py
   cli.py
-  subdomains.py
+  config.py
+  github_recon.py
+  httpprobe.py
+  output.py
   portscan.py
-  techdetect.py
+  scanner.py
   scopecheck.py
+  summarize.py
+  subdomains.py
+  techdetect.py
   report.py
+tests/
+  test_core.py
 prompts/
   ai_triage.md
 examples/
   example_report.md
+  reconforge.json
 requirements.txt
 setup.py
 README.md
 ```
 
-## Contributing
+## Checks
 
-Pull requests are welcome. For a smooth contribution:
-
-1. Open an issue or describe the problem your PR solves.
-2. Keep changes focused and include clear user-facing errors.
-3. Add or update examples when output changes.
-4. Run basic checks before submitting:
-
-```bash
-python -m compileall reconforge
+```powershell
+py -m compileall reconforge
+py -m unittest discover -s tests
 reconforge --help
+reconforge github --help
+reconforge httpprobe --help
+reconforge report --help
+reconforge summarize --help
 ```
 
 ## Authorized Testing Only
@@ -223,4 +301,4 @@ ReconForge is intended only for systems you own or have explicit permission to t
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See `LICENSE`.
