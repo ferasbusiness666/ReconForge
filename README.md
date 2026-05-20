@@ -11,52 +11,69 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](#installation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
-[![Stars](https://img.shields.io/github/stars/example/reconforge?style=social)](#reconforge)
+[![GitHub stars](https://img.shields.io/github/stars/ferasbusiness666/reconforge?style=social)](https://github.com/ferasbusiness666/ReconForge)
+[![GitHub issues](https://img.shields.io/github/issues/ferasbusiness666/reconforge)](https://github.com/ferasbusiness666/ReconForge/issues)
 
-**AI-assisted recon toolkit for bug bounty hunters**
+**AI-assisted recon toolkit for bug bounty hunters and security researchers**
 
-ReconForge combines practical recon automation with AI triage prompts so authorized testers can move from raw findings to prioritized hypotheses faster.
+ReconForge combines practical recon automation with AI triage prompts so authorized testers can move from raw findings to prioritized hypotheses faster. Built for speed, reliability, and ease of use.
 
-## Features
+## ✨ Features
 
-- 🔎 **Subdomain discovery** from certificate transparency data via crt.sh.
-- 🚪 **Common port scanning** for 80, 443, 8080, 8443, 22, 21, 3306, and 6379.
-- 🧬 **Technology detection** from HTTP headers, cookies, security headers, CDN hints, and lightweight body signals.
-- 🧭 **Scope checking** for exact hosts, wildcard domains, IP addresses, and CIDR ranges.
-- 📄 **Markdown reports** with subdomains, open ports, banners, technology fingerprints, and collection notes.
-- 🤖 **AI triage prompts** for HTTP responses, auth flows, JavaScript, APIs, sensitive endpoints, and prioritization.
-- 🎨 **Rich terminal output** with tables, status indicators, and progress spinners.
+- 🔎 **Subdomain Discovery** - Find subdomains from certificate transparency data via crt.sh
+- ⚡ **Concurrent Port Scanning** - Fast multi-port scanning with ThreadPoolExecutor
+- 🧬 **Technology Detection** - Identify tech stacks from headers, cookies, and body signals
+- 🧭 **Scope Checking** - Validate targets against exact hosts, wildcards, IP ranges, and CIDR blocks
+- 📄 **Markdown Reports** - Professional reports with findings, technologies, and collection notes
+- 🤖 **AI Triage Prompts** - Structured prompts for analyzing HTTP responses, auth flows, APIs, and more
+- 🎨 **Rich Terminal Output** - Beautiful tables, status indicators, and progress spinners
+- 🚀 **Production Ready** - Comprehensive tests, CI/CD, and error handling
 
-## Installation
+## 🚀 Quick Start
 
-### Install with pip from a local checkout
-
-```bash
-git clone https://github.com/example/reconforge.git
-cd reconforge
-python -m pip install .
-```
-
-### Development install
+### Installation
 
 ```bash
-git clone https://github.com/example/reconforge.git
-cd reconforge
-python -m pip install -r requirements.txt
-python -m pip install -e .
+# Install from PyPI (coming soon)
+pip install reconforge
+
+# Or install from source
+git clone https://github.com/ferasbusiness666/ReconForge.git
+cd ReconForge
+pip install .
 ```
 
-## Usage
+### Basic Usage
 
-### Discover subdomains
+```bash
+# Discover subdomains
+reconforge subdomains -d example.com
+
+# Scan common ports
+reconforge portscan -t api.example.com
+
+# Detect technologies
+reconforge techdetect -u https://api.example.com
+
+# Check scope
+reconforge scopecheck -t targets.txt -s scope.txt
+
+# Generate full report
+reconforge report -d example.com --output report.md
+```
+
+## 📖 Detailed Usage
+
+### Subdomain Discovery
+
+Discover subdomains using certificate transparency logs:
 
 ```bash
 reconforge subdomains -d example.com
 ```
 
-Sample output:
-
-```text
+**Output:**
+```
        Subdomains for example.com
 ┏━━━━┳━━━━━━━━━━━━━━━━━━━┓
 ┃ #  ┃ Subdomain         ┃
@@ -68,16 +85,21 @@ Sample output:
 Total: 3
 ```
 
-### Scan common ports
+### Port Scanning
+
+Scan common ports with concurrent scanning for speed:
 
 ```bash
-reconforge portscan -t sub.example.com
+# Default: scan common ports (80, 443, 8080, 8443, 22, 21, 3306, 6379)
+reconforge portscan -t api.example.com
+
+# Custom ports
+reconforge portscan -t api.example.com --ports 80,443,3000,5000
 ```
 
-Sample output:
-
-```text
-            Port scan for sub.example.com
+**Output:**
+```
+            Port scan for api.example.com
 ┏━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Port ┃ Status    ┃ Banner / Note                   ┃
 ┡━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -87,16 +109,17 @@ Sample output:
 └──────┴───────────┴─────────────────────────────────┘
 ```
 
-### Detect technologies
+### Technology Detection
+
+Fingerprint web technologies from HTTP headers and response body:
 
 ```bash
-reconforge techdetect -u https://sub.example.com
+reconforge techdetect -u https://api.example.com
 ```
 
-Sample output:
-
-```text
-Final URL: https://sub.example.com/
+**Output:**
+```
+Final URL: https://api.example.com/
 HTTP status: 200
 
 Detected Technologies
@@ -109,28 +132,37 @@ Detected Technologies
 └─────────────────────────┘
 ```
 
-### Check scope
+### Scope Checking
+
+Validate targets against your bug bounty scope:
 
 ```bash
 reconforge scopecheck -t targets.txt -s scope.txt
 ```
 
-Example `scope.txt`:
-
-```text
+**scope.txt:**
+```
 example.com
 *.example.com
 192.0.2.0/24
 ```
 
-Sample output:
+**targets.txt:**
+```
+api.example.com
+login.example.com
+thirdparty.net
+192.0.2.50
+```
 
-```text
+**Output:**
+```
 In-Scope Targets
 ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Target            ┃ Reason                     ┃
 ┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ api.example.com   │ matched wildcard *.example.com │
+│ 192.0.2.50        │ matched CIDR 192.0.2.0/24 │
 └───────────────────┴────────────────────────────┘
 
 Out-of-Scope Targets
@@ -141,86 +173,137 @@ Out-of-Scope Targets
 └────────────────────┴───────────────────────┘
 ```
 
-### Generate a report
+### Generate Report
+
+Create a comprehensive markdown report combining all findings:
 
 ```bash
 reconforge report -d example.com --output report.md
 ```
 
-Sample output:
+See [`examples/example_report.md`](examples/example_report.md) for a sample report.
 
-```text
-Report written: report.md
-```
+## 🤖 AI Triage Prompts
 
-See [`examples/example_report.md`](examples/example_report.md) for a realistic sample report.
+ReconForge includes a library of AI-assisted triage prompts in [`prompts/ai_triage.md`](prompts/ai_triage.md) for analyzing:
 
-## Why ReconForge?
+- HTTP responses and headers
+- Authentication and session flows
+- Sensitive and admin-looking endpoints
+- JavaScript routes and feature flags
+- API authorization patterns
+- Parameter anomalies
+- Finding prioritization
 
-### Avoid out-of-scope mistakes
+**Important:** Always remove secrets, tokens, and proprietary data before pasting into any AI system.
 
-Bug bounty scope can include exact hosts, wildcard subdomains, and IP ranges while excluding adjacent third-party systems. ReconForge's scope checker separates in-scope and out-of-scope targets before testing so you can fail safely and document why a target was included or excluded.
+## 🛠 Development
 
-### Reduce manual recon time waste
-
-Manual recon often means jumping between CT logs, socket checks, browser tabs, notes, and markdown templates. ReconForge gives you a small, auditable workflow for common first-pass tasks and produces tables that are easy to copy into notes or reports.
-
-### Bring AI into recon without replacing judgment
-
-ReconForge includes model-agnostic AI triage prompts that help analyze HTTP responses, unusual headers, auth flows, sensitive endpoints, JavaScript, API behavior, parameter anomalies, and prioritization. The prompts are designed to turn raw evidence into next-step hypotheses while keeping final validation in the tester's hands.
-
-## AI Triage Prompts
-
-The prompt library lives in [`prompts/ai_triage.md`](prompts/ai_triage.md). Use it when you need a structured second pass over:
-
-- HTTP responses and headers.
-- Authentication, SSO, MFA, and session flows.
-- Sensitive or admin-looking endpoints.
-- JavaScript routes, feature flags, and source maps.
-- API authorization and object-level access patterns.
-- Parameter behavior and anomaly triage.
-- Finding prioritization and report drafting.
-
-Always remove secrets, tokens, personal data, and proprietary content before pasting material into any AI system.
-
-## Project Structure
-
-```text
-reconforge/
-  __init__.py
-  cli.py
-  subdomains.py
-  portscan.py
-  techdetect.py
-  scopecheck.py
-  report.py
-prompts/
-  ai_triage.md
-examples/
-  example_report.md
-requirements.txt
-setup.py
-README.md
-```
-
-## Contributing
-
-Pull requests are welcome. For a smooth contribution:
-
-1. Open an issue or describe the problem your PR solves.
-2. Keep changes focused and include clear user-facing errors.
-3. Add or update examples when output changes.
-4. Run basic checks before submitting:
+### Setup Development Environment
 
 ```bash
-python -m compileall reconforge
-reconforge --help
+git clone https://github.com/ferasbusiness666/ReconForge.git
+cd ReconForge
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pip install -e .
 ```
 
-## Authorized Testing Only
+### Running Tests
 
-ReconForge is intended only for systems you own or have explicit permission to test. You are responsible for following program scope, laws, terms of service, and rate limits. Do not use ReconForge against unauthorized targets.
+```bash
+# All tests
+pytest
 
-## License
+# With coverage
+pytest --cov=reconforge
 
-MIT. See [`LICENSE`](LICENSE).
+# Specific test file
+pytest tests/test_subdomains.py -v
+```
+
+### Code Quality
+
+```bash
+# Format code
+black reconforge tests
+
+# Lint
+flake8 reconforge tests
+
+# Type check
+mypy reconforge
+
+# Sort imports
+isort reconforge tests
+```
+
+## 📋 Project Structure
+
+```
+reconforge/
+  __init__.py           # Package metadata
+  cli.py               # CLI commands
+  subdomains.py        # Subdomain discovery
+  portscan.py          # Port scanning with concurrency
+  techdetect.py        # Technology detection
+  scopecheck.py        # Scope validation
+  report.py            # Report generation
+prompts/
+  ai_triage.md         # AI triage prompt library
+tests/
+  test_*.py            # Unit tests
+examples/
+  example_report.md    # Sample generated report
+.github/workflows/
+  ci.yml               # GitHub Actions CI/CD
+requirements.txt       # Runtime dependencies
+requirements-dev.txt   # Development dependencies
+setup.py              # Package configuration
+```
+
+## 🎯 Why ReconForge?
+
+### Avoid Out-of-Scope Mistakes
+
+Bug bounty scope can include exact hosts, wildcard subdomains, and IP ranges while excluding third-party systems. ReconForge's scope checker separates in-scope and out-of-scope targets before testing.
+
+### Reduce Manual Recon Time
+
+Manual recon means jumping between CT logs, socket checks, browser tabs, and notes. ReconForge provides an auditable workflow for common first-pass tasks with easy-to-copy output.
+
+### Bring AI Into Recon
+
+ReconForge includes model-agnostic AI triage prompts that help analyze findings while keeping final validation in your hands.
+
+## 🔒 Security & Ethics
+
+ReconForge is intended **only for systems you own or have explicit permission to test**. You are responsible for:
+
+- Following program scope and rules of engagement
+- Complying with all applicable laws and regulations
+- Respecting rate limits and terms of service
+- Using only on authorized targets
+
+## 📝 License
+
+MIT License - see [`LICENSE`](LICENSE) for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
+
+## 📚 Resources
+
+- [Bug Bounty Platforms](https://www.bugcrowd.com) - Find authorized programs
+- [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/) - Testing methodology
+- [PortSwigger Web Security](https://portswigger.net/web-security) - Security training
+
+## 🙏 Acknowledgments
+
+Built with ❤️ for the security research community.
+
+---
+
+**Questions?** Open an [issue](https://github.com/ferasbusiness666/ReconForge/issues) or check the [discussions](https://github.com/ferasbusiness666/ReconForge/discussions).

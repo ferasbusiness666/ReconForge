@@ -84,21 +84,46 @@ def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes:
     return "\n".join(lines)
 
 
-def generate_report(domain: str, output: str, timeout: float = 10.0, max_hosts: int = 5) -> Dict[str, object]:
-    """Run a small recon workflow for *domain* and write a markdown report."""
+def generate_report(
+    domain: str,
+    output: str,
+    timeout: float = 10.0,
+    max_hosts: Optional[int] = None,
+    concurrent: bool = True,
+) -> Dict[str, object]:
+    """Run a recon workflow for *domain* and write a markdown report.
+    
+    Args:
+        domain: Target domain to scan
+        output: Output file path for markdown report
+        timeout: Request timeout in seconds
+        max_hosts: Maximum hosts to scan (None = all discovered)
+        concurrent: Use concurrent port scanning for speed
+    
+    Returns:
+        Dictionary with output path, scanned hosts, and errors
+    """
     subdomains, subdomain_errors = fetch_subdomains(domain, timeout=timeout)
-    hosts = subdomains[:max_hosts] if subdomains else [domain]
+    hosts = subdomains[:max_hosts] if max_hosts and subdomains else (subdomains or [domain])
     port_results = {}
     tech_results = {}
     errors: List[str] = list(subdomain_errors)
 
     for host in hosts:
-        scan = scan_ports(host, timeout=2.0)
+        # Use concurrent scanning for faster results
+        scan = scan_ports(host, timeout=2.0, concurrent=concurrent, max_workers=4)
         port_results[host] = scan.get("results", [])
         errors.extend(scan.get("errors", []))
-        tech = detect_technologies(f"https://{host}", timeout=timeout)
-        tech_results[f"https://{host}"] = tech
-        errors.extend(tech.get("errors", []))
+
+        # Try both HTTPS and HTTP if HTTPS fails
+        for protocol in ["https", "http"]:
+            url = f"{protocol}://{host}"
+            tech = detect_technologies(url, timeout=timeout)
+            if tech.get("status_code") or not tech.get("errors"):
+                tech_results[url] = tech
+                errors.extend(tech.get("errors", []))
+                break
+            errors.extend(tech.get("errors", []))
 
     markdown = build_markdown_report(
         domain,

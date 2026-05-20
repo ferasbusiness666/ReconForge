@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
 
 COMMON_PORTS = [80, 443, 8080, 8443, 22, 21, 3306, 6379]
@@ -50,19 +51,56 @@ def scan_port(host: str, port: int, timeout: float = 2.0) -> Dict[str, object]:
     return result
 
 
-def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 2.0) -> Dict[str, object]:
-    """Scan common TCP ports on *host* with socket timeouts."""
+def scan_ports(
+    host: str,
+    ports: Optional[List[int]] = None,
+    timeout: float = 2.0,
+    concurrent: bool = False,
+    max_workers: int = 4,
+) -> Dict[str, object]:
+    """Scan common TCP ports on *host* with socket timeouts.
+    
+    Args:
+        host: Target hostname or IP address
+        ports: List of ports to scan (defaults to COMMON_PORTS)
+        timeout: Socket timeout in seconds
+        concurrent: Use concurrent scanning for faster results
+        max_workers: Maximum number of concurrent threads
+    
+    Returns:
+        Dictionary with host, results list, and errors list
+    """
     targets = ports or COMMON_PORTS
     if not host or not host.strip():
         return {"host": host, "results": [], "errors": ["Target host is required."]}
 
-    results = []
-    errors = []
-    for port in targets:
-        row = scan_port(host.strip(), int(port), timeout=timeout)
-        if row["status"] == "error":
-            errors.append(str(row["error"]))
+    results: List[Dict[str, object]] = []
+    errors: List[str] = []
+    host_clean = host.strip()
+
+    if concurrent and len(targets) > 1:
+        # Use concurrent scanning for multiple ports
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(scan_port, host_clean, int(port), timeout): port for port in targets}
+            for future in as_completed(futures):
+                try:
+                    row = future.result()
+                    if row["status"] == "error":
+                        errors.append(str(row["error"]))
+                    else:
+                        results.append(row)
+                except Exception as exc:
+                    errors.append(f"Scanning error: {exc}")
+    else:
+        # Sequential scanning
+        for port in targets:
+            row = scan_port(host_clean, int(port), timeout=timeout)
+            if row["status"] == "error":
+                errors.append(str(row["error"]))
+                # Continue scanning other ports instead of breaking
+                continue
             results.append(row)
-            break
-        results.append(row)
-    return {"host": host.strip(), "results": results, "errors": errors}
+
+    # Sort results by port for consistent output
+    results.sort(key=lambda x: x.get("port", 0))
+    return {"host": host_clean, "results": results, "errors": errors}
