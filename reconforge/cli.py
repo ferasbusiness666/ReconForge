@@ -276,5 +276,10 @@ def config_set(key: str, value: str) -> None:
     console.print(f"[bold green]✓[/bold green] Set {key} = {config.get(key)}")
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point for CLI."""
     cli()
+
+
+if __name__ == "__main__":
+    main()

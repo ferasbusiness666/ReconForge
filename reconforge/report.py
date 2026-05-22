@@ -50,7 +50,9 @@ def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes:
         lines.extend([f"### `{host}`", "", "| Port | Status | Banner |", "| --- | --- | --- |"])
         for row in open_rows:
             banner = str(row.get("banner") or "").replace("|", "\\|")
-            lines.append(f"| {row.get('port')} | {row.get('status')} | {banner} |")
+            port = row.get('port')
+            status = row.get('status')
+            lines.append(f"| {port} | {status} | {banner} |")
         lines.append("")
     if not any_open:
         lines.append("No open common ports were identified.")
@@ -65,7 +67,8 @@ def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes:
             if headers:
                 lines.extend(["", "| Header | Value |", "| --- | --- |"])
                 for key, value in headers.items():
-                    lines.append(f"| `{key}` | `{str(value).replace('|', '\\|')}` |")
+                    escaped_value = str(value).replace('|', '\\|')
+                    lines.append(f"| `{key}` | `{escaped_value}` |")
             lines.append("")
     else:
         lines.append("No technology fingerprints were collected.")

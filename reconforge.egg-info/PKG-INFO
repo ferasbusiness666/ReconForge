@@ -1,0 +1,364 @@
+Metadata-Version: 2.4
+Name: reconforge
+Version: 1.0.0
+Summary: AI-assisted recon toolkit for bug bounty hunters and security researchers
+Home-page: https://github.com/ferasbusiness666/ReconForge
+Author: Feras
+Author-email: Feras <feras@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/ferasbusiness666/ReconForge
+Project-URL: Documentation, https://github.com/ferasbusiness666/ReconForge/tree/main/docs
+Project-URL: Repository, https://github.com/ferasbusiness666/ReconForge.git
+Project-URL: Bug Tracker, https://github.com/ferasbusiness666/ReconForge/issues
+Project-URL: Changelog, https://github.com/ferasbusiness666/ReconForge/blob/main/CHANGELOG.md
+Project-URL: Security Policy, https://github.com/ferasbusiness666/ReconForge/blob/main/docs/SECURITY.md
+Keywords: security,recon,reconnaissance,bug-bounty,penetration-testing,subdomain-discovery,port-scanning,technology-detection,vulnerability-assessment,automation,infosec,cybersecurity,hacking,ethical-hacking
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet
+Classifier: Topic :: Security
+Classifier: Topic :: System :: Networking
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: Utilities
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: requests>=2.28.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: bandit>=1.7.0; extra == "dev"
+Requires-Dist: safety>=2.0.0; extra == "dev"
+Requires-Dist: pip-audit>=2.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# ReconForge
+
+```text
+ ____  _____ ____ ___  _   _ _____ ___  ____   ____ _____
+|  _ \| ____/ ___/ _ \| \ | |  ___/ _ \|  _ \ / ___| ____|
+| |_) |  _|| |  | | | |  \| | |_ | | | | |_) | |  _|  _|
+|  _ <| |__| |__| |_| | |\  |  _|| |_| |  _ <| |_| | |___
+|_| \_\_____\____\___/|_| \_|_|   \___/|_| \_\\____|_____|
+```
+
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](#installation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
+[![GitHub stars](https://img.shields.io/github/stars/ferasbusiness666/reconforge?style=social)](https://github.com/ferasbusiness666/ReconForge)
+[![GitHub issues](https://img.shields.io/github/issues/ferasbusiness666/reconforge)](https://github.com/ferasbusiness666/ReconForge/issues)
+
+**AI-assisted recon toolkit for bug bounty hunters and security researchers**
+
+ReconForge combines practical recon automation with AI triage prompts so authorized testers can move from raw findings to prioritized hypotheses faster. Built for speed, reliability, and ease of use.
+
+## ✨ Features
+
+- 🔎 **Subdomain Discovery** - Find subdomains from certificate transparency data via crt.sh
+- ⚡ **Concurrent Port Scanning** - Fast multi-port scanning with ThreadPoolExecutor
+- 🧬 **Technology Detection** - Identify tech stacks from headers, cookies, and body signals
+- 🧭 **Scope Checking** - Validate targets against exact hosts, wildcards, IP ranges, and CIDR blocks
+- 📄 **Markdown Reports** - Professional reports with findings, technologies, and collection notes
+- 🤖 **AI Triage Prompts** - Structured prompts for analyzing HTTP responses, auth flows, APIs, and more
+- 🎨 **Rich Terminal Output** - Beautiful tables, status indicators, and progress spinners
+- 🚀 **Production Ready** - Comprehensive tests, CI/CD, and error handling
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Install from PyPI (coming soon)
+pip install reconforge
+
+# Or install from source
+git clone https://github.com/ferasbusiness666/ReconForge.git
+cd ReconForge
+pip install .
+```
+
+### Basic Usage
+
+```bash
+# Discover subdomains
+reconforge subdomains -d example.com
+
+# Scan common ports
+reconforge portscan -t api.example.com
+
+# Detect technologies
+reconforge techdetect -u https://api.example.com
+
+# Check scope
+reconforge scopecheck -t targets.txt -s scope.txt
+
+# Generate full report
+reconforge report -d example.com --output report.md
+```
+
+## 📖 Detailed Usage
+
+### Subdomain Discovery
+
+Discover subdomains using certificate transparency logs:
+
+```bash
+reconforge subdomains -d example.com
+```
+
+**Output:**
+```
+       Subdomains for example.com
+┏━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ #  ┃ Subdomain         ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ 1  │ api.example.com   │
+│ 2  │ login.example.com │
+│ 3  │ www.example.com   │
+└────┴───────────────────┘
+Total: 3
+```
+
+### Port Scanning
+
+Scan common ports with concurrent scanning for speed:
+
+```bash
+# Default: scan common ports (80, 443, 8080, 8443, 22, 21, 3306, 6379)
+reconforge portscan -t api.example.com
+
+# Custom ports
+reconforge portscan -t api.example.com --ports 80,443,3000,5000
+```
+
+**Output:**
+```
+            Port scan for api.example.com
+┏━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Port ┃ Status    ┃ Banner / Note                   ┃
+┡━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│   80 │ 🟢 open   │ HTTP/1.1 301 Moved Permanently  │
+│  443 │ 🟢 open   │ No banner                       │
+│ 8080 │ 🔴 closed │ Connection refused              │
+└──────┴───────────┴─────────────────────────────────┘
+```
+
+### Technology Detection
+
+Fingerprint web technologies from HTTP headers and response body:
+
+```bash
+reconforge techdetect -u https://api.example.com
+```
+
+**Output:**
+```
+Final URL: https://api.example.com/
+HTTP status: 200
+
+Detected Technologies
+┏━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Technology              ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ nginx                   │
+│ HSTS                    │
+│ Content Security Policy │
+└─────────────────────────┘
+```
+
+### Scope Checking
+
+Validate targets against your bug bounty scope:
+
+```bash
+reconforge scopecheck -t targets.txt -s scope.txt
+```
+
+**scope.txt:**
+```
+example.com
+*.example.com
+192.0.2.0/24
+```
+
+**targets.txt:**
+```
+api.example.com
+login.example.com
+thirdparty.net
+192.0.2.50
+```
+
+**Output:**
+```
+In-Scope Targets
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Target            ┃ Reason                     ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ api.example.com   │ matched wildcard *.example.com │
+│ 192.0.2.50        │ matched CIDR 192.0.2.0/24 │
+└───────────────────┴────────────────────────────┘
+
+Out-of-Scope Targets
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Target             ┃ Reason                ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
+│ thirdparty.net     │ no scope rule matched │
+└────────────────────┴───────────────────────┘
+```
+
+### Generate Report
+
+Create a comprehensive markdown report combining all findings:
+
+```bash
+reconforge report -d example.com --output report.md
+```
+
+See [`examples/example_report.md`](examples/example_report.md) for a sample report.
+
+## 🤖 AI Triage Prompts
+
+ReconForge includes a library of AI-assisted triage prompts in [`prompts/ai_triage.md`](prompts/ai_triage.md) for analyzing:
+
+- HTTP responses and headers
+- Authentication and session flows
+- Sensitive and admin-looking endpoints
+- JavaScript routes and feature flags
+- API authorization patterns
+- Parameter anomalies
+- Finding prioritization
+
+**Important:** Always remove secrets, tokens, and proprietary data before pasting into any AI system.
+
+## 🛠 Development
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/ferasbusiness666/ReconForge.git
+cd ReconForge
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pip install -e .
+```
+
+### Running Tests
+
+```bash
+# All tests
+pytest
+
+# With coverage
+pytest --cov=reconforge
+
+# Specific test file
+pytest tests/test_subdomains.py -v
+```
+
+### Code Quality
+
+```bash
+# Format code
+black reconforge tests
+
+# Lint
+flake8 reconforge tests
+
+# Type check
+mypy reconforge
+
+# Sort imports
+isort reconforge tests
+```
+
+## 📋 Project Structure
+
+```
+reconforge/
+  __init__.py           # Package metadata
+  cli.py               # CLI commands
+  subdomains.py        # Subdomain discovery
+  portscan.py          # Port scanning with concurrency
+  techdetect.py        # Technology detection
+  scopecheck.py        # Scope validation
+  report.py            # Report generation
+prompts/
+  ai_triage.md         # AI triage prompt library
+tests/
+  test_*.py            # Unit tests
+examples/
+  example_report.md    # Sample generated report
+.github/workflows/
+  ci.yml               # GitHub Actions CI/CD
+requirements.txt       # Runtime dependencies
+requirements-dev.txt   # Development dependencies
+setup.py              # Package configuration
+```
+
+## 🎯 Why ReconForge?
+
+### Avoid Out-of-Scope Mistakes
+
+Bug bounty scope can include exact hosts, wildcard subdomains, and IP ranges while excluding third-party systems. ReconForge's scope checker separates in-scope and out-of-scope targets before testing.
+
+### Reduce Manual Recon Time
+
+Manual recon means jumping between CT logs, socket checks, browser tabs, and notes. ReconForge provides an auditable workflow for common first-pass tasks with easy-to-copy output.
+
+### Bring AI Into Recon
+
+ReconForge includes model-agnostic AI triage prompts that help analyze findings while keeping final validation in your hands.
+
+## 🔒 Security & Ethics
+
+ReconForge is intended **only for systems you own or have explicit permission to test**. You are responsible for:
+
+- Following program scope and rules of engagement
+- Complying with all applicable laws and regulations
+- Respecting rate limits and terms of service
+- Using only on authorized targets
+
+## 📝 License
+
+MIT License - see [`LICENSE`](LICENSE) for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
+
+## 📚 Resources
+
+- [Bug Bounty Platforms](https://www.bugcrowd.com) - Find authorized programs
+- [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/) - Testing methodology
+- [PortSwigger Web Security](https://portswigger.net/web-security) - Security training
+
+## 🙏 Acknowledgments
+
+Built with ❤️ for the security research community.
+
+---
+
+**Questions?** Open an [issue](https://github.com/ferasbusiness666/ReconForge/issues) or check the [discussions](https://github.com/ferasbusiness666/ReconForge/discussions).
