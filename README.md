@@ -34,7 +34,7 @@ ReconForge combines practical recon automation with AI triage prompts so authori
 ### Installation
 
 ```bash
-# Install from PyPI (coming soon)
+# Install from PyPI (recommended)
 pip install reconforge
 
 # Or install from source
