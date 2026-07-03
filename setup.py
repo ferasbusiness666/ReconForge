@@ -7,7 +7,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="reconforge",
-    version="1.0.0",
+    version="1.1.0",
     description="AI-assisted recon toolkit for bug bounty hunters",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -25,6 +25,7 @@ setup(
         "click>=8.1",
         "rich>=13.0",
         "requests>=2.31",
+        "dnspython>=2.3",
     ],
     extras_require={
         "dev": [

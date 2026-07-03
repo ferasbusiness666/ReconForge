@@ -10,6 +10,7 @@ reconforge/cache.py
 reconforge/cli.py
 reconforge/compare.py
 reconforge/config.py
+reconforge/dns_enum.py
 reconforge/export.py
 reconforge/logger.py
 reconforge/portscan.py

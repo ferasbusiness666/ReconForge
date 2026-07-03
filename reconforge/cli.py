@@ -21,6 +21,13 @@ from .report import generate_report
 from .scopecheck import check_targets
 from .subdomains import fetch_subdomains
 from .techdetect import detect_technologies
+from .dns_enum import (
+    enumerate_dns_records,
+    brute_force_subdomains,
+    reverse_dns_lookup,
+    get_mx_records,
+    get_ns_records,
+)
 
 console = Console()
 
@@ -274,6 +281,129 @@ def config_set(key: str, value: str) -> None:
     
     config.save()
     console.print(f"[bold green]✓[/bold green] Set {key} = {config.get(key)}")
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain to enumerate DNS records")
+@click.option("-t", "--type", default="all", help="Record type: A, AAAA, MX, NS, TXT, CNAME, SOA, SRV, or 'all'")
+def dns_enum(domain: str, type: str) -> None:
+    """Enumerate DNS records for a domain."""
+    console.print(f"[bold cyan]🔍 DNS Enumeration for {domain}[/bold cyan]")
+    
+    if type.upper() == "ALL":
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+            progress.add_task("Enumerating DNS records...", total=None)
+            result = enumerate_dns_records(domain)
+        
+        if result["records"]:
+            for record_type, records in result["records"].items():
+                console.print(f"\n[bold yellow]{record_type} Records:[/bold yellow]")
+                for record in records:
+                    console.print(f"  • {record}")
+        
+        if result["errors"]:
+            print_errors(result["errors"])
+    else:
+        result = enumerate_dns_records(domain)
+        records = result["records"].get(type.upper(), [])
+        if records:
+            console.print(f"\n[bold yellow]{type.upper()} Records:[/bold yellow]")
+            for record in records:
+                console.print(f"  • {record}")
+        else:
+            console.print(f"[bold red]✗[/bold red] No {type.upper()} records found")
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain to brute force subdomains")
+@click.option("-w", "--wordlist", default=None, help="Path to wordlist file (optional)")
+@click.option("-t", "--threads", default=10, help="Number of concurrent threads")
+def dns_brute(domain: str, wordlist: str | None, threads: int) -> None:
+    """Brute force DNS subdomains."""
+    console.print(f"[bold cyan]🔍 DNS Brute Force for {domain}[/bold cyan]")
+    
+    wordlist_data = None
+    if wordlist:
+        try:
+            with open(wordlist, "r") as f:
+                wordlist_data = [line.strip() for line in f if line.strip()]
+                console.print(f"[bold green]✓[/bold green] Loaded {len(wordlist_data)} subdomains from {wordlist}")
+        except FileNotFoundError:
+            console.print(f"[bold red]✗[/bold red] Wordlist file not found: {wordlist}")
+            return
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        progress.add_task("Brute forcing subdomains...", total=None)
+        result = brute_force_subdomains(domain, wordlist_data, max_workers=threads)
+    
+    if result["subdomains"]:
+        console.print(f"\n[bold green]✓ Found {result['count']} subdomains:[/bold green]")
+        table = Table(title=f"Discovered Subdomains for {domain}")
+        table.add_column("#", style="cyan")
+        table.add_column("Subdomain", style="green")
+        for idx, subdomain in enumerate(result["subdomains"], 1):
+            table.add_row(str(idx), subdomain)
+        console.print(table)
+    else:
+        console.print("[bold yellow]⚠ No subdomains found[/bold yellow]")
+    
+    if result["errors"]:
+        print_errors(result["errors"])
+
+
+@cli.command()
+@click.option("-i", "--ip", required=True, help="IP address to reverse lookup")
+def dns_reverse(ip: str) -> None:
+    """Perform reverse DNS lookup on an IP address."""
+    console.print(f"[bold cyan]🔍 Reverse DNS Lookup for {ip}[/bold cyan]")
+    
+    result = reverse_dns_lookup(ip)
+    if result["hostname"]:
+        console.print(f"[bold green]✓ Hostname:[/bold green] {result['hostname']}")
+    else:
+        if result["errors"]:
+            print_errors(result["errors"])
+        else:
+            console.print("[bold yellow]⚠ No hostname found[/bold yellow]")
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain to query MX records")
+def dns_mx(domain: str) -> None:
+    """Get MX records for a domain."""
+    console.print(f"[bold cyan]📧 MX Records for {domain}[/bold cyan]")
+    
+    result = get_mx_records(domain)
+    if result["mx_records"]:
+        table = Table(title=f"MX Records for {domain}")
+        table.add_column("Preference", style="cyan")
+        table.add_column("Exchange", style="green")
+        for mx in result["mx_records"]:
+            table.add_row(str(mx["preference"]), mx["exchange"])
+        console.print(table)
+    else:
+        if result["errors"]:
+            print_errors(result["errors"])
+        else:
+            console.print("[bold yellow]⚠ No MX records found[/bold yellow]")
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain to query NS records")
+def dns_ns(domain: str) -> None:
+    """Get NS records for a domain."""
+    console.print(f"[bold cyan]🔗 NS Records for {domain}[/bold cyan]")
+    
+    result = get_ns_records(domain)
+    if result["ns_records"]:
+        console.print(f"[bold green]✓ Nameservers:[/bold green]")
+        for ns in result["ns_records"]:
+            console.print(f"  • {ns}")
+    else:
+        if result["errors"]:
+            print_errors(result["errors"])
+        else:
+            console.print("[bold yellow]⚠ No NS records found[/bold yellow]")
 
 
 def main():
