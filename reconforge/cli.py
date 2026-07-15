@@ -413,3 +413,88 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain/host to scan SSL/TLS certificate")
+@click.option("-p", "--port", default=443, help="Port number (default 443)")
+def ssl_scan(domain: str, port: int) -> None:
+    """Scan SSL/TLS certificate for a host."""
+    from .ssl_tls import get_certificate_info
+    
+    console.print(f"[bold cyan]🔐 SSL/TLS Certificate Scan for {domain}:{port}[/bold cyan]")
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        progress.add_task("Scanning SSL/TLS certificate...", total=None)
+        result = get_certificate_info(domain, port)
+    
+    if result["certificate"]:
+        cert = result["certificate"]
+        ssl_info = result["ssl_tls"]
+        
+        console.print("\n[bold green]✓ Certificate Information:[/bold green]")
+        table = Table()
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        
+        if cert["subject"]:
+            subject = cert["subject"]
+            table.add_row("Subject", subject.get("commonName", "N/A"))
+        if cert["issuer"]:
+            issuer = cert["issuer"]
+            table.add_row("Issuer", issuer.get("commonName", "N/A"))
+        if cert["not_before"]:
+            table.add_row("Valid From", cert["not_before"])
+        if cert["not_after"]:
+            table.add_row("Valid Until", cert["not_after"])
+        
+        console.print(table)
+        
+        if ssl_info:
+            console.print("\n[bold green]✓ SSL/TLS Information:[/bold green]")
+            ssl_table = Table()
+            ssl_table.add_column("Property", style="cyan")
+            ssl_table.add_column("Value", style="green")
+            ssl_table.add_row("Protocol", ssl_info.get("protocol_version", "N/A"))
+            ssl_table.add_row("Cipher Suite", ssl_info.get("cipher_suite", "N/A"))
+            ssl_table.add_row("Cipher Bits", str(ssl_info.get("cipher_bits", "N/A")))
+            console.print(ssl_table)
+        
+        if result["issues"]:
+            console.print("\n[bold yellow]⚠ Issues Found:[/bold yellow]")
+            for issue in result["issues"]:
+                console.print(f"  {issue}")
+    else:
+        if result["errors"]:
+            print_errors(result["errors"])
+        else:
+            console.print("[bold red]✗ Failed to retrieve certificate[/bold red]")
+
+
+@cli.command()
+@click.option("-t", "--targets", required=True, help="File with hosts to scan (one per line)")
+@click.option("-p", "--port", default=443, help="Port number (default 443)")
+@click.option("--threads", default=10, help="Number of concurrent threads")
+def ssl_batch(targets: str, port: int, threads: int) -> None:
+    """Batch scan SSL/TLS certificates for multiple hosts."""
+    from .ssl_tls import scan_ssl_tls_hosts
+    
+    try:
+        with open(targets, "r") as f:
+            hosts = [line.strip() for line in f if line.strip()]
+        console.print(f"[bold cyan]🔐 SSL/TLS Batch Scan for {len(hosts)} hosts[/bold cyan]")
+    except FileNotFoundError:
+        console.print(f"[bold red]✗ File not found: {targets}[/bold red]")
+        return
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        progress.add_task(f"Scanning {len(hosts)} hosts...", total=None)
+        results = scan_ssl_tls_hosts(hosts, port, threads)
+    
+    console.print(f"\n[bold green]✓ Scanned {results['summary']['hosts_scanned']} hosts[/bold green]")
+    
+    for host_result in results["hosts"]:
+        if host_result["issues"]:
+            console.print(f"\n[bold yellow]{host_result['host']}:{host_result['port']}[/bold yellow]")
+            for issue in host_result["issues"]:
+                console.print(f"  {issue}")

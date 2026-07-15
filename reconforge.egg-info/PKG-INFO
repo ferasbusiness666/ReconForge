@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: reconforge
-Version: 1.0.0
+Version: 1.2.0
 Summary: AI-assisted recon toolkit for bug bounty hunters and security researchers
 Home-page: https://github.com/ferasbusiness666/ReconForge
 Author: Feras
@@ -37,6 +37,7 @@ License-File: LICENSE
 Requires-Dist: click>=8.0.0
 Requires-Dist: rich>=13.0.0
 Requires-Dist: requests>=2.28.0
+Requires-Dist: dnspython>=2.3.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
@@ -89,7 +90,7 @@ ReconForge combines practical recon automation with AI triage prompts so authori
 ### Installation
 
 ```bash
-# Install from PyPI (coming soon)
+# Install from PyPI (recommended)
 pip install reconforge
 
 # Or install from source

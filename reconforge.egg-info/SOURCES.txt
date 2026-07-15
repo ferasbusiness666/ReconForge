@@ -16,6 +16,7 @@ reconforge/logger.py
 reconforge/portscan.py
 reconforge/report.py
 reconforge/scopecheck.py
+reconforge/ssl_tls.py
 reconforge/subdomains.py
 reconforge/techdetect.py
 reconforge/utils.py
@@ -26,7 +27,6 @@ reconforge.egg-info/dependency_links.txt
 reconforge.egg-info/entry_points.txt
 reconforge.egg-info/requires.txt
 reconforge.egg-info/top_level.txt
-tests/__init__.py
 tests/test_portscan.py
 tests/test_subdomains.py
 tests/test_techdetect.py
