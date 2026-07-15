@@ -21,6 +21,8 @@ ReconForge combines practical recon automation with AI triage prompts so authori
 ## ✨ Features
 
 - 🔎 **Subdomain Discovery** - Find subdomains from certificate transparency data via crt.sh
+- 🔐 **DNS Enumeration** - Enumerate DNS records (A, AAAA, MX, NS, TXT, CNAME, SOA, SRV)
+- 🔐 **SSL/TLS Analysis** - Certificate validation, expiration detection, cipher analysis
 - ⚡ **Concurrent Port Scanning** - Fast multi-port scanning with ThreadPoolExecutor
 - 🧬 **Technology Detection** - Identify tech stacks from headers, cookies, and body signals
 - 🧭 **Scope Checking** - Validate targets against exact hosts, wildcards, IP ranges, and CIDR blocks
@@ -48,6 +50,12 @@ pip install .
 ```bash
 # Discover subdomains
 reconforge subdomains -d example.com
+
+# Enumerate DNS records
+reconforge dns-enum -d example.com
+
+# Scan SSL/TLS certificate
+reconforge ssl-scan -d example.com
 
 # Scan common ports
 reconforge portscan -t api.example.com
