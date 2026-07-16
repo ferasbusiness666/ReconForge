@@ -23,6 +23,7 @@ ReconForge combines practical recon automation with AI triage prompts so authori
 - 🔎 **Subdomain Discovery** - Find subdomains from certificate transparency data via crt.sh
 - 🔐 **DNS Enumeration** - Enumerate DNS records (A, AAAA, MX, NS, TXT, CNAME, SOA, SRV)
 - 🔐 **SSL/TLS Analysis** - Certificate validation, expiration detection, cipher analysis
+- 🔍 **Shodan Integration** - Search Shodan for domains and IPs, identify vulnerabilities
 - ⚡ **Concurrent Port Scanning** - Fast multi-port scanning with ThreadPoolExecutor
 - 🧬 **Technology Detection** - Identify tech stacks from headers, cookies, and body signals
 - 🧭 **Scope Checking** - Validate targets against exact hosts, wildcards, IP ranges, and CIDR blocks
@@ -56,6 +57,12 @@ reconforge dns-enum -d example.com
 
 # Scan SSL/TLS certificate
 reconforge ssl-scan -d example.com
+
+# Search Shodan for a domain
+reconforge shodan-search -d example.com -k YOUR_SHODAN_API_KEY
+
+# Get Shodan info for an IP
+reconforge shodan-host -i 1.1.1.1 -k YOUR_SHODAN_API_KEY
 
 # Scan common ports
 reconforge portscan -t api.example.com
