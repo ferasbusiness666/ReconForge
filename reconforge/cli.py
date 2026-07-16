@@ -498,3 +498,87 @@ def ssl_batch(targets: str, port: int, threads: int) -> None:
             console.print(f"\n[bold yellow]{host_result['host']}:{host_result['port']}[/bold yellow]")
             for issue in host_result["issues"]:
                 console.print(f"  {issue}")
+
+
+@cli.command()
+@click.option("-d", "--domain", required=True, help="Domain to search on Shodan")
+@click.option("-k", "--api-key", required=True, help="Shodan API key")
+def shodan_search(domain: str, api_key: str) -> None:
+    """Search Shodan for a domain."""
+    from .shodan_integration import search_domain_on_shodan
+    
+    console.print(f"[bold cyan]🔍 Searching Shodan for {domain}[/bold cyan]")
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        progress.add_task("Querying Shodan API...", total=None)
+        result = search_domain_on_shodan(domain, api_key)
+    
+    if "error" in result:
+        console.print(f"[bold red]✗ Error: {result['error']}[/bold red]")
+        return
+    
+    console.print(f"\n[bold green]✓ Found {result['total_results']} results[/bold green]")
+    
+    if result["hosts"]:
+        table = Table(title=f"Shodan Results for {domain}")
+        table.add_column("IP", style="cyan")
+        table.add_column("Port", style="green")
+        table.add_column("Service", style="yellow")
+        table.add_column("Organization", style="magenta")
+        
+        for host in result["hosts"][:20]:  # Show first 20
+            table.add_row(
+                host["ip"],
+                str(host["port"]),
+                host["service"],
+                host["organization"]
+            )
+        console.print(table)
+    
+    if result["services"]:
+        console.print("\n[bold yellow]Services Found:[/bold yellow]")
+        for service, count in result["services"].items():
+            console.print(f"  • {service}: {count}")
+    
+    if result["high_risk_hosts"]:
+        console.print(f"\n[bold red]⚠ High Risk Hosts: {len(result['high_risk_hosts'])}[/bold red]")
+        for host in result["high_risk_hosts"]:
+            console.print(f"  • {host['ip']}:{host['port']} - {host['service']}")
+
+
+@cli.command()
+@click.option("-i", "--ip", required=True, help="IP address to lookup on Shodan")
+@click.option("-k", "--api-key", required=True, help="Shodan API key")
+def shodan_host(ip: str, api_key: str) -> None:
+    """Get detailed Shodan information for an IP."""
+    from .shodan_integration import search_ip_on_shodan
+    
+    console.print(f"[bold cyan]🔍 Shodan Host Lookup for {ip}[/bold cyan]")
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        progress.add_task("Querying Shodan API...", total=None)
+        result = search_ip_on_shodan(ip, api_key)
+    
+    if "error" in result:
+        console.print(f"[bold red]✗ Error: {result['error']}[/bold red]")
+        return
+    
+    console.print("\n[bold green]✓ Host Information:[/bold green]")
+    table = Table()
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("IP", result["ip"])
+    table.add_row("Organization", result["organization"])
+    table.add_row("Country", result["country"])
+    table.add_row("Ports", ", ".join(map(str, result["ports"])))
+    console.print(table)
+    
+    if result["services"]:
+        console.print("\n[bold yellow]Services:[/bold yellow]")
+        for service in result["services"]:
+            console.print(f"  • Port {service['port']}: {service['protocol']}")
+    
+    if result["vulnerabilities"]:
+        console.print(f"\n[bold red]⚠ Vulnerabilities: {len(result['vulnerabilities'])}[/bold red]")
+        for vuln in result["vulnerabilities"][:5]:
+            console.print(f"  • {vuln}")

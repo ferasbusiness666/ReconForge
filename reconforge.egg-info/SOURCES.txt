@@ -16,6 +16,7 @@ reconforge/logger.py
 reconforge/portscan.py
 reconforge/report.py
 reconforge/scopecheck.py
+reconforge/shodan_integration.py
 reconforge/ssl_tls.py
 reconforge/subdomains.py
 reconforge/techdetect.py
