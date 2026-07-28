@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+import socket
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Callable, Dict, Iterable, List, Tuple
 
 import requests
@@ -151,6 +154,38 @@ def fetch_subdomains(domain: str, timeout: float = 15.0) -> Tuple[List[str], Lis
                 discovered.add(normalized)
 
     return sorted(discovered), errors
+
+
+def _resolve_hostname(hostname: str) -> Tuple[str, List[str], str]:
+    """Resolve one hostname with the operating system DNS resolver."""
+    try:
+        answers = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return hostname, [], ""
+    except OSError as exc:
+        return hostname, [], str(exc)
+
+    addresses = sorted({str(answer[4][0]) for answer in answers if answer[4]})
+    return hostname, addresses, ""
+
+
+def filter_resolvable(
+    hostnames: Iterable[str],
+    workers: int = 8,
+) -> Tuple[List[str], Dict[str, List[str]], List[str]]:
+    """Keep hostnames that resolve, using bounded standard-library DNS checks."""
+    candidates = sorted(set(hostnames))
+    if not candidates:
+        return [], {}, []
+
+    max_workers = max(1, min(int(workers), len(candidates), 32))
+    worker = partial(_resolve_hostname)
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="reconforge-dns") as executor:
+        rows = list(executor.map(worker, candidates))
+
+    resolutions = {hostname: addresses for hostname, addresses, _error in rows if addresses}
+    errors = [f"DNS resolution error for {hostname}: {error}" for hostname, _addresses, error in rows if error]
+    return sorted(resolutions), resolutions, errors
 
 
 def subdomain_rows(domain: str, timeout: float = 15.0) -> Dict[str, object]:

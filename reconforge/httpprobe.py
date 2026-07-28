@@ -10,6 +10,8 @@ from typing import Dict, List
 
 import requests
 
+from .techdetect import INTERESTING_HEADERS, infer_technologies
+
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
 
@@ -22,8 +24,19 @@ def extract_title(body: str) -> str:
 
 
 def probe_url(url: str, timeout: float = 5.0) -> Dict[str, object]:
-    """Probe one URL and return status, final URL, title, and errors."""
-    row: Dict[str, object] = {"url": url, "final_url": "", "status_code": None, "title": "", "ok": False, "error": ""}
+    """Probe one URL and return lightweight response metadata and errors."""
+    row: Dict[str, object] = {
+        "url": url,
+        "final_url": "",
+        "status_code": None,
+        "title": "",
+        "content_length": None,
+        "content_type": "",
+        "server": "",
+        "technologies": [],
+        "ok": False,
+        "error": "",
+    }
     try:
         response = requests.get(url, timeout=timeout, allow_redirects=True)
     except requests.exceptions.Timeout:
@@ -36,9 +49,33 @@ def probe_url(url: str, timeout: float = 5.0) -> Dict[str, object]:
         row["error"] = f"Connection error: {exc}"
         return row
 
+    body = response.text
+    raw_headers = getattr(response, "headers", {})
+    headers = {}
+    for name in [*INTERESTING_HEADERS, "Content-Length", "Content-Type"]:
+        try:
+            value = raw_headers.get(name, "")
+        except AttributeError:
+            value = ""
+        if isinstance(value, str) and value:
+            headers[name] = value
+
+    content_length = headers.get("Content-Length")
+    try:
+        parsed_length = int(content_length) if content_length is not None else None
+    except (TypeError, ValueError):
+        parsed_length = None
+    if parsed_length is None:
+        content = getattr(response, "content", None)
+        parsed_length = len(content) if isinstance(content, (bytes, bytearray)) else len(body.encode("utf-8"))
+
     row["final_url"] = response.url
     row["status_code"] = response.status_code
-    row["title"] = extract_title(response.text[:5000])
+    row["title"] = extract_title(body[:5000])
+    row["content_length"] = parsed_length
+    row["content_type"] = headers.get("Content-Type", "")
+    row["server"] = headers.get("Server", "")
+    row["technologies"] = infer_technologies(headers, body[:5000])
     row["ok"] = True
     return row
 

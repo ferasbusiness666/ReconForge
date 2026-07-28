@@ -26,7 +26,7 @@ from reconforge.httpprobe import extract_title, probe_host, probe_hosts_file
 from reconforge.portscan import resolve_ports, scan_port, scan_ports
 from reconforge.report import generate_report, generate_report_from_json
 from reconforge.summarize import summarize_report
-from reconforge.subdomains import fetch_subdomains
+from reconforge.subdomains import fetch_subdomains, filter_resolvable
 
 
 class PortScanTests(unittest.TestCase):
@@ -128,6 +128,89 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(result["output"], str(output))
             self.assertIn("api.example.com", output.read_text(encoding="utf-8"))
 
+    def test_generate_report_from_multiple_json_files_merges_command_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            subdomains = root / "subdomains.json"
+            ports = root / "ports.json"
+            probes = root / "probes.json"
+            scope = root / "scope.json"
+            output = root / "report.md"
+            subdomains.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "command": "subdomains",
+                        "domain": "example.com",
+                        "subdomains": ["api.example.com"],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ports.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "command": "portscan",
+                        "host": "example.com",
+                        "results": [{"port": 443, "status": "open", "banner": "No banner", "error": ""}],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            probes.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "command": "httpprobe",
+                        "results": [
+                            {
+                                "host": "api.example.com",
+                                "probes": [
+                                    {
+                                        "status_code": 200,
+                                        "content_length": 42,
+                                        "server": "nginx",
+                                        "technologies": ["nginx"],
+                                        "title": "API",
+                                        "final_url": "https://api.example.com/",
+                                    }
+                                ],
+                            }
+                        ],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            scope.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "command": "scopecheck",
+                        "in_scope": [{"target": "api.example.com", "reason": "matched wildcard *.example.com"}],
+                        "out_of_scope": [],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = generate_report_from_json(
+                [str(subdomains), str(ports), str(probes), str(scope)],
+                str(output),
+            )
+
+            markdown = output.read_text(encoding="utf-8")
+            self.assertTrue(result["written"])
+            self.assertEqual(len(result["sources"]), 4)
+            self.assertIn("api.example.com", markdown)
+            self.assertIn("| 443 | open | No banner |", markdown)
+            self.assertIn("https://api.example.com/", markdown)
+            self.assertIn("matched wildcard *.example.com", markdown)
+
     @patch("reconforge.report.detect_technologies", side_effect=RuntimeError("tech collector failed"))
     @patch("reconforge.report.scan_ports", side_effect=RuntimeError("port collector failed"))
     @patch("reconforge.report.fetch_subdomains", return_value=([], ["provider failed"]))
@@ -183,6 +266,8 @@ class CliJsonTests(unittest.TestCase):
         payload = json.loads(result.output)
         self.assertEqual(payload["subdomains"], ["api.example.com"])
         self.assertEqual(payload["errors"], ["provider failed"])
+        self.assertEqual(payload["schema_version"], "1.0")
+        self.assertEqual(payload["command"], "subdomains")
 
     @patch("reconforge.cli.scan_ports", return_value={"host": "example.com", "results": [{"port": 80, "status": "open", "banner": "HTTP", "error": ""}], "errors": []})
     def test_portscan_json_outputs_machine_readable_payload(self, _scan: Mock) -> None:
@@ -232,6 +317,56 @@ class CliJsonTests(unittest.TestCase):
         payload = json.loads(result.output)
         self.assertIn("must start with", payload["errors"][0])
 
+    @patch("reconforge.cli.fetch_subdomains", return_value=([], []))
+    def test_quiet_suppresses_normal_terminal_output(self, _fetch: Mock) -> None:
+        result = CliRunner().invoke(cli, ["subdomains", "-d", "example.com", "--quiet"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.output, "")
+
+    def test_report_cli_merges_repeated_from_json_options(self) -> None:
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("subdomains.json").write_text(
+                json.dumps(
+                    {
+                        "command": "subdomains",
+                        "domain": "example.com",
+                        "subdomains": ["api.example.com"],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            Path("ports.json").write_text(
+                json.dumps(
+                    {
+                        "command": "portscan",
+                        "host": "example.com",
+                        "results": [{"port": 80, "status": "open", "banner": "HTTP", "error": ""}],
+                        "errors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = runner.invoke(
+                cli,
+                [
+                    "report",
+                    "--from-json",
+                    "subdomains.json",
+                    "--from-json",
+                    "ports.json",
+                    "--output",
+                    "report.md",
+                    "--quiet",
+                ],
+            )
+
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "")
+            self.assertIn("api.example.com", Path("report.md").read_text(encoding="utf-8"))
+
 
 class ConfigTests(unittest.TestCase):
     """Config loading behavior."""
@@ -259,17 +394,29 @@ class HttpProbeTests(unittest.TestCase):
         first.url = "https://example.com/"
         first.status_code = 200
         first.text = "<title>Example</title>"
+        first.content = first.text.encode()
+        first.headers = {
+            "Content-Length": "512",
+            "Content-Type": "text/html",
+            "Server": "nginx",
+        }
         second = Mock()
         second.url = "http://example.com/"
         second.status_code = 301
         second.text = ""
+        second.content = b""
+        second.headers = {"Server": "cloudflare", "CF-Ray": "abc"}
         mock_get.side_effect = [first, second]
 
         rows = probe_host("example.com", timeout=0.1)
 
         self.assertEqual(rows[0]["url"], "https://example.com")
         self.assertEqual(rows[0]["title"], "Example")
+        self.assertEqual(rows[0]["content_length"], 512)
+        self.assertEqual(rows[0]["server"], "nginx")
+        self.assertIn("nginx", rows[0]["technologies"])
         self.assertEqual(rows[1]["status_code"], 301)
+        self.assertIn("Cloudflare", rows[1]["technologies"])
 
     @patch("reconforge.httpprobe.probe_host")
     def test_probe_hosts_file_keeps_results_when_one_host_fails(self, mock_probe: Mock) -> None:
@@ -309,6 +456,24 @@ class SubdomainTests(unittest.TestCase):
 
         self.assertEqual(subdomains, ["api.example.com", "dev.example.com", "www.example.com"])
         self.assertTrue(any("crt.sh" in error for error in errors))
+
+    @patch("reconforge.subdomains.socket.getaddrinfo")
+    def test_filter_resolvable_keeps_only_dns_answers(self, mock_getaddrinfo: Mock) -> None:
+        def fake_getaddrinfo(hostname: str, _port: object, type: object) -> list[tuple[object, ...]]:
+            if hostname == "dead.example.com":
+                raise socket.gaierror("not found")
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.10", 0))]
+
+        mock_getaddrinfo.side_effect = fake_getaddrinfo
+
+        names, resolutions, errors = filter_resolvable(
+            ["api.example.com", "dead.example.com"],
+            workers=2,
+        )
+
+        self.assertEqual(names, ["api.example.com"])
+        self.assertEqual(resolutions["api.example.com"], ["192.0.2.10"])
+        self.assertEqual(errors, [])
 
 
 class GitHubReconTests(unittest.TestCase):

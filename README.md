@@ -32,11 +32,14 @@ ReconForge is a lightweight, scope-aware recon toolkit for authorized bug bounty
 - HTTP technology detection from headers, cookies, security headers, CDN hints, and light body fingerprints.
 - Scope checking for exact hosts, wildcard domains, IP addresses, and CIDR ranges.
 - GitHub repository recon from the public GitHub API, with optional `GITHUB_TOKEN` support.
-- Bounded concurrent HTTP/HTTPS probing for saved host lists.
+- Bounded concurrent HTTP/HTTPS probing with status, final URL, title, response length, server, and basic tech hints.
 - Markdown reports with collection notes when providers fail.
-- Optional JSON output for automation.
+- Versioned JSON output for automation.
 - Optional scope notes in markdown reports.
 - Optional scan profiles and custom port lists.
+- Optional DNS-resolvable filtering for discovered subdomains.
+- Repeatable `--from-json` report inputs for merging saved findings.
+- Quiet mode for file-oriented scripting.
 - AI-ready report summaries without requiring an AI API key.
 - Rich terminal tables with Windows-safe status lines.
 
@@ -108,7 +111,10 @@ If Windows prints `'reconforge' is not recognized`:
 reconforge subdomains -d example.com
 reconforge subdomains -d example.com --json
 reconforge subdomains -d example.com --output subdomains.txt
+reconforge subdomains -d example.com --resolvable
 ```
+
+`--resolvable` uses the operating system DNS resolver with bounded workers. It does not perform brute-force discovery.
 
 ### Scan Common Ports
 
@@ -142,9 +148,10 @@ reconforge httpprobe -i subdomains.txt
 reconforge httpprobe -i subdomains.txt --workers 8
 reconforge httpprobe -i subdomains.txt --json
 reconforge httpprobe -i subdomains.txt --output http.json
+reconforge httpprobe -i subdomains.txt --output http.json --quiet
 ```
 
-This checks HTTP/HTTPS reachability only. It does not crawl or brute-force paths.
+This checks HTTP/HTTPS reachability and reports status, final URL, title, response length, server header, and basic technology hints from the same response. It does not crawl or brute-force paths.
 
 ### Check Scope
 
@@ -217,7 +224,31 @@ Build a markdown report from saved JSON findings:
 reconforge report --from-json recon.json --output reports/example.md
 ```
 
+Merge multiple command outputs into one markdown report:
+
+```powershell
+reconforge report --from-json subdomains.json --from-json ports.json --from-json http.json --output reports/merged.md
+```
+
 The report command creates missing output folders automatically and writes collection errors under `Collection Notes` instead of crashing.
+
+### Quiet Mode
+
+Commands support `--quiet` to suppress progress lines, tables, and success messages while still writing `--output` files. Hard failures and collection errors remain visible.
+
+```powershell
+reconforge portscan -t example.com --output ports.json --quiet
+```
+
+### JSON Output Contract
+
+Machine-readable command payloads include:
+
+- `schema_version`: currently `1.0`
+- `command`: the command that produced the payload
+- `errors`: collection errors when the command supports partial results
+
+Fields are additive within schema `1.x`. Breaking field changes require a new schema major version. See [`docs/json-output.md`](docs/json-output.md) for the documented command payloads and report merge behavior.
 
 ### Create an AI-Ready Summary
 
@@ -306,12 +337,15 @@ reconforge/
   output.py
   portscan.py
   report.py
+  schema.py
   scopecheck.py
   summarize.py
   subdomains.py
   techdetect.py
 tests/
   test_core.py
+docs/
+  json-output.md
 prompts/
   ai_triage.md
 examples/

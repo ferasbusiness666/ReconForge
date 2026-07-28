@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from .github_recon import fetch_github_recon
 from .output import ensure_parent
@@ -20,12 +20,159 @@ def md_cell(value: object) -> str:
     return str(value or "").replace("|", "\\|").replace("\n", " ")
 
 
+def _append_unique(target: List[object], values: Iterable[object]) -> None:
+    """Append values while preserving order and avoiding duplicates."""
+    for value in values:
+        if value not in target:
+            target.append(value)
+
+
+def _merge_github(target: Dict[str, object], source: Dict[str, object]) -> None:
+    """Merge normalized GitHub recon payloads without duplicating repositories."""
+    if not target:
+        target.update({"owner": "", "repo": None, "repos": [], "errors": [], "rate_limit": {}})
+    if source.get("owner") and not target.get("owner"):
+        target["owner"] = source.get("owner")
+    if source.get("repo") and not target.get("repo"):
+        target["repo"] = source.get("repo")
+
+    repos = target.setdefault("repos", [])
+    if isinstance(repos, list) and isinstance(source.get("repos"), list):
+        _append_unique(repos, source["repos"])
+    github_errors = target.setdefault("errors", [])
+    if isinstance(github_errors, list) and isinstance(source.get("errors"), list):
+        _append_unique(github_errors, source["errors"])
+    if isinstance(source.get("rate_limit"), dict):
+        target["rate_limit"] = source["rate_limit"]
+
+
+def merge_saved_findings(
+    payloads: List[Tuple[str, Dict[str, object]]],
+) -> Tuple[str, Dict[str, object], List[str]]:
+    """Merge full findings and command-specific JSON payloads for reporting."""
+    merged: Dict[str, object] = {
+        "subdomains": [],
+        "ports": {},
+        "technologies": {},
+        "http_probes": [],
+        "github": {},
+        "errors": [],
+    }
+    scope_notes: List[str] = []
+    domains: List[str] = []
+    multiple_sources = len(payloads) > 1
+
+    for source_path, payload in payloads:
+        command = str(payload.get("command") or "")
+        source_name = Path(source_path).name
+        for key in ("domain", "target", "host"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip() and value not in domains:
+                domains.append(value.strip())
+                break
+
+        errors = payload.get("errors")
+        if isinstance(errors, list):
+            normalized = [
+                f"{source_name}: {error}" if multiple_sources else str(error)
+                for error in errors
+            ]
+            _append_unique(merged["errors"], normalized)  # type: ignore[arg-type]
+
+        subdomains = payload.get("subdomains")
+        if isinstance(subdomains, list):
+            _append_unique(merged["subdomains"], subdomains)  # type: ignore[arg-type]
+
+        ports = payload.get("ports")
+        if isinstance(ports, dict):
+            merged_ports = merged["ports"]
+            if isinstance(merged_ports, dict):
+                for host, rows in ports.items():
+                    if not isinstance(rows, list):
+                        continue
+                    target_rows = merged_ports.setdefault(str(host), [])
+                    if isinstance(target_rows, list):
+                        _append_unique(target_rows, rows)
+        elif command == "portscan" and isinstance(payload.get("results"), list):
+            host = str(payload.get("host") or payload.get("target") or "saved-target")
+            merged_ports = merged["ports"]
+            if isinstance(merged_ports, dict):
+                target_rows = merged_ports.setdefault(host, [])
+                if isinstance(target_rows, list):
+                    _append_unique(target_rows, payload["results"])
+
+        technologies = payload.get("technologies")
+        if isinstance(technologies, dict):
+            merged_tech = merged["technologies"]
+            if isinstance(merged_tech, dict):
+                merged_tech.update(technologies)
+        elif command == "techdetect":
+            url = str(payload.get("url") or "saved-url")
+            merged_tech = merged["technologies"]
+            if isinstance(merged_tech, dict):
+                merged_tech[url] = {
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"command", "schema_version"}
+                }
+
+        http_probes = payload.get("http_probes")
+        if isinstance(http_probes, list):
+            _append_unique(merged["http_probes"], http_probes)  # type: ignore[arg-type]
+        elif command == "httpprobe" and isinstance(payload.get("results"), list):
+            _append_unique(merged["http_probes"], payload["results"])  # type: ignore[arg-type]
+
+        github_data = payload.get("github")
+        if isinstance(github_data, dict):
+            _merge_github(merged["github"], github_data)  # type: ignore[arg-type]
+            nested_errors = github_data.get("errors")
+            if isinstance(nested_errors, list):
+                _append_unique(merged["errors"], nested_errors)  # type: ignore[arg-type]
+        elif command == "github":
+            _merge_github(merged["github"], payload)  # type: ignore[arg-type]
+
+        saved_scope = payload.get("scope_notes")
+        if isinstance(saved_scope, list):
+            _append_unique(scope_notes, [str(note) for note in saved_scope])
+        if command == "scopecheck":
+            in_scope = payload.get("in_scope")
+            if isinstance(in_scope, list):
+                _append_unique(
+                    scope_notes,
+                    [
+                        f"{row.get('target')}: {row.get('reason')}"
+                        for row in in_scope
+                        if isinstance(row, dict)
+                    ],
+                )
+            out_of_scope = payload.get("out_of_scope")
+            if isinstance(out_of_scope, list):
+                _append_unique(
+                    scope_notes,
+                    [
+                        f"{row.get('target')}: out of scope ({row.get('reason')})"
+                        for row in out_of_scope
+                        if isinstance(row, dict)
+                    ],
+                )
+
+    domain = domains[0] if domains else "saved-recon"
+    if len(domains) > 1:
+        merged_errors = merged["errors"]
+        if isinstance(merged_errors, list):
+            merged_errors.append(
+                f"Merged inputs reference multiple targets; report title uses {domain}: {', '.join(domains)}"
+            )
+    return domain, merged, scope_notes
+
+
 def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes: Optional[List[str]] = None) -> str:
     """Build a clean markdown report for *domain* from structured *findings*."""
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     subdomains = findings.get("subdomains", []) or []
     port_results = findings.get("ports", {}) or {}
     tech_results = findings.get("technologies", {}) or {}
+    http_results = findings.get("http_probes", []) or []
     github_results = findings.get("github", {}) or {}
     errors = findings.get("errors", []) or []
 
@@ -39,6 +186,7 @@ def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes:
         "",
         f"- Subdomains found: **{len(subdomains)}**",
         f"- Hosts scanned for ports: **{len(port_results)}**",
+        f"- HTTP probes collected: **{sum(len(item.get('probes', [])) for item in http_results if isinstance(item, dict))}**",
         f"- Technology fingerprints collected: **{len(tech_results)}**",
         "",
         "## Subdomains Found",
@@ -63,6 +211,41 @@ def build_markdown_report(domain: str, findings: Dict[str, object], scope_notes:
         lines.append("")
     if not any_ports:
         lines.append("No common port results were collected.")
+
+    lines.extend(["", "## HTTP Probe Results", ""])
+    probe_rows = []
+    for item in http_results:
+        if not isinstance(item, dict):
+            continue
+        host = item.get("host") or ""
+        for probe in item.get("probes", []) or []:
+            if isinstance(probe, dict):
+                probe_rows.append((host, probe))
+    if probe_rows:
+        lines.extend(
+            [
+                "| Host | Status | Length | Server | Technologies | Title | Final URL |",
+                "| --- | ---: | ---: | --- | --- | --- | --- |",
+            ]
+        )
+        for host, probe in probe_rows:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        md_cell(host),
+                        md_cell(probe.get("status_code")),
+                        md_cell(probe.get("content_length")),
+                        md_cell(probe.get("server")),
+                        md_cell(", ".join(probe.get("technologies", []) or [])),
+                        md_cell(probe.get("title")),
+                        md_cell(probe.get("final_url") or probe.get("url")),
+                    ]
+                )
+                + " |"
+            )
+    else:
+        lines.append("No HTTP probe results were provided.")
 
     lines.extend(["", "## Detected Technologies", ""])
     if tech_results:
@@ -211,41 +394,53 @@ def generate_report(
     return {
         "output": output,
         "written": True,
+        "hard_failure": False,
         "hosts": hosts,
         "scope_notes": scope_notes,
         "errors": errors,
     }
 
 
-def generate_report_from_json(input_path: str, output: str) -> Dict[str, object]:
-    """Build a markdown report from a saved JSON findings file."""
-    try:
-        findings = json.loads(Path(input_path).read_text(encoding="utf-8"))
-    except OSError as exc:
+def generate_report_from_json(
+    input_paths: Union[str, Iterable[str]],
+    output: str,
+) -> Dict[str, object]:
+    """Build a markdown report from one or more saved JSON findings files."""
+    paths = [input_paths] if isinstance(input_paths, str) else list(input_paths)
+    if not paths:
         return {
             "output": output,
             "written": False,
             "hard_failure": True,
-            "errors": [f"Could not read {input_path}: {exc}"],
-        }
-    except ValueError as exc:
-        return {
-            "output": output,
-            "written": False,
-            "hard_failure": True,
-            "errors": [f"Invalid JSON in {input_path}: {exc}"],
+            "errors": ["At least one JSON findings file is required."],
         }
 
-    if not isinstance(findings, dict):
+    payloads: List[Tuple[str, Dict[str, object]]] = []
+    input_errors: List[str] = []
+    for input_path in paths:
+        try:
+            findings = json.loads(Path(input_path).read_text(encoding="utf-8"))
+        except OSError as exc:
+            input_errors.append(f"Could not read {input_path}: {exc}")
+            continue
+        except ValueError as exc:
+            input_errors.append(f"Invalid JSON in {input_path}: {exc}")
+            continue
+
+        if not isinstance(findings, dict):
+            input_errors.append(f"Invalid findings structure in {input_path}.")
+            continue
+        payloads.append((input_path, findings))
+
+    if input_errors:
         return {
             "output": output,
             "written": False,
             "hard_failure": True,
-            "errors": [f"Invalid findings structure in {input_path}."],
+            "errors": input_errors,
         }
 
-    domain = str(findings.get("domain") or findings.get("target") or "saved-recon")
-    scope_notes = findings.get("scope_notes", []) if isinstance(findings.get("scope_notes", []), list) else []
+    domain, findings, scope_notes = merge_saved_findings(payloads)
     markdown = build_markdown_report(domain, findings, scope_notes=scope_notes)
     output_path = ensure_parent(output)
     output_path.write_text(markdown, encoding="utf-8")
@@ -253,6 +448,7 @@ def generate_report_from_json(input_path: str, output: str) -> Dict[str, object]
         "output": output,
         "written": True,
         "hard_failure": False,
+        "sources": paths,
         "hosts": list((findings.get("ports") or {}).keys()),
         "scope_notes": scope_notes,
         "errors": findings.get("errors", []) or [],

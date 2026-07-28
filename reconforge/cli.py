@@ -16,9 +16,10 @@ from .httpprobe import probe_hosts_file
 from .output import write_json, write_lines, write_text
 from .portscan import resolve_ports, scan_ports
 from .report import generate_report, generate_report_from_json
+from .schema import with_schema
 from .scopecheck import check_targets
 from .summarize import summarize_report
-from .subdomains import fetch_subdomains
+from .subdomains import fetch_subdomains, filter_resolvable
 from .techdetect import detect_technologies
 
 console = Console()
@@ -48,21 +49,51 @@ def cli() -> None:
 
 @cli.command()
 @click.option("-d", "--domain", required=True, help="Domain to enumerate, e.g. example.com")
+@click.option("--resolvable", is_flag=True, help="Keep only hostnames that currently resolve")
+@click.option("--resolve-workers", type=click.IntRange(1, 32), default=8, show_default=True, help="Concurrent DNS checks")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def subdomains(domain: str, output: Optional[str], json_output: bool) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def subdomains(
+    domain: str,
+    resolvable: bool,
+    resolve_workers: int,
+    output: Optional[str],
+    json_output: bool,
+    quiet: bool,
+) -> None:
     """Discover subdomains for a domain using public sources."""
-    if not json_output:
+    if not json_output and not quiet:
         print_status(f"Querying public subdomain sources for {domain}...")
     results, errors = fetch_subdomains(domain)
-    payload = {"domain": domain, "subdomains": results, "errors": errors}
     hard_failure = next((error for error in errors if error.startswith("Invalid domain:")), None)
 
     if hard_failure:
+        payload = with_schema(
+            "subdomains",
+            {"domain": domain, "subdomains": results, "resolvable_only": resolvable, "resolutions": {}, "errors": errors},
+        )
         if json_output:
             print_json(payload)
             raise click.exceptions.Exit(2)
         raise click.ClickException(hard_failure)
+
+    resolutions = {}
+    if resolvable:
+        if not json_output and not quiet:
+            print_status(f"Resolving {len(results)} discovered hostnames...")
+        results, resolutions, resolution_errors = filter_resolvable(results, workers=resolve_workers)
+        errors.extend(resolution_errors)
+    payload = with_schema(
+        "subdomains",
+        {
+            "domain": domain,
+            "subdomains": results,
+            "resolvable_only": resolvable,
+            "resolutions": resolutions,
+            "errors": errors,
+        },
+    )
 
     if json_output:
         if output:
@@ -73,6 +104,8 @@ def subdomains(domain: str, output: Optional[str], json_output: bool) -> None:
     if output:
         write_lines(output, results)
     print_errors(errors)
+    if quiet:
+        return
     table = Table(title=f"Subdomains for {domain}")
     table.add_column("#", justify="right", style="cyan")
     table.add_column("Subdomain", style="green")
@@ -93,6 +126,7 @@ def subdomains(domain: str, output: Optional[str], json_output: bool) -> None:
 @click.option("--config", "config_path", default="reconforge.json", show_default=True, help="Optional JSON config file")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
 def portscan(
     target: str,
     profile: Optional[str],
@@ -102,6 +136,7 @@ def portscan(
     config_path: str,
     output: Optional[str],
     json_output: bool,
+    quiet: bool,
 ) -> None:
     """Scan common TCP ports for a target host."""
     config, config_errors = load_config(config_path)
@@ -115,7 +150,7 @@ def portscan(
     resolved_workers = workers if workers is not None else int(portscan_config.get("workers") or 8)
     resolved_workers = max(1, min(resolved_workers, 32))
 
-    if not json_output:
+    if not json_output and not quiet:
         print_status(f"Scanning common ports on {target}...")
     try:
         resolved_ports = resolve_ports(profile=resolved_profile, ports_text=ports_text)
@@ -130,6 +165,7 @@ def portscan(
     )
     scan["profile"] = resolved_profile
     scan["errors"] = config_errors + list(scan.get("errors", []))
+    scan = with_schema("portscan", scan)
 
     if json_output:
         if output:
@@ -140,6 +176,8 @@ def portscan(
     if output:
         write_json(output, scan)
     print_errors(scan.get("errors", []))
+    if quiet:
+        return
     table = Table(title=f"Port scan for {target}")
     table.add_column("Port", justify="right", style="cyan")
     table.add_column("Status")
@@ -164,11 +202,12 @@ def portscan(
 @click.option("-u", "--url", required=True, help="URL to fingerprint, e.g. https://sub.example.com")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def techdetect(url: str, output: Optional[str], json_output: bool) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def techdetect(url: str, output: Optional[str], json_output: bool, quiet: bool) -> None:
     """Detect HTTP technologies from headers and lightweight body signals."""
-    if not json_output:
+    if not json_output and not quiet:
         print_status(f"Fingerprinting {url}...")
-    result = detect_technologies(url)
+    result = with_schema("techdetect", detect_technologies(url))
     hard_failure = next(
         (error for error in result.get("errors", []) if str(error).startswith("URL must start")),
         None,
@@ -189,6 +228,8 @@ def techdetect(url: str, output: Optional[str], json_output: bool) -> None:
     if output:
         write_json(output, result)
     print_errors(result.get("errors", []))
+    if quiet:
+        return
     console.print(f"[bold]Final URL:[/bold] {result.get('url')}")
     console.print(f"[bold]HTTP status:[/bold] {result.get('status_code')}")
 
@@ -217,12 +258,19 @@ def techdetect(url: str, output: Optional[str], json_output: bool) -> None:
 @click.option("-r", "--repo", help="Optional repository name, e.g. vscode")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def github(owner: str, repo: Optional[str] = None, output: Optional[str] = None, json_output: bool = False) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def github(
+    owner: str,
+    repo: Optional[str] = None,
+    output: Optional[str] = None,
+    json_output: bool = False,
+    quiet: bool = False,
+) -> None:
     """Collect lightweight GitHub repository recon from the public API."""
     label = f"{owner}/{repo}" if repo else owner
-    if not json_output:
+    if not json_output and not quiet:
         print_status(f"Querying GitHub for {label}...")
-    result = fetch_github_recon(owner, repo=repo)
+    result = with_schema("github", fetch_github_recon(owner, repo=repo))
 
     if json_output:
         if output:
@@ -233,6 +281,8 @@ def github(owner: str, repo: Optional[str] = None, output: Optional[str] = None,
     if output:
         write_json(output, result)
     print_errors(result.get("errors", []))
+    if quiet:
+        return
     repos = result.get("repos", []) or []
 
     summary = Table(title=f"GitHub Recon for {label}")
@@ -297,11 +347,19 @@ def github(owner: str, repo: Optional[str] = None, output: Optional[str] = None,
 @click.option("--workers", type=click.IntRange(1, 32), default=8, show_default=True, help="Concurrent host probes")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def httpprobe(input_file: str, timeout: float, workers: int, output: Optional[str], json_output: bool) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def httpprobe(
+    input_file: str,
+    timeout: float,
+    workers: int,
+    output: Optional[str],
+    json_output: bool,
+    quiet: bool,
+) -> None:
     """Probe HTTP and HTTPS reachability for hosts from a file."""
-    if not json_output:
+    if not json_output and not quiet:
         print_status(f"Probing HTTP/HTTPS targets from {input_file}...")
-    result = probe_hosts_file(input_file, timeout=timeout, workers=workers)
+    result = with_schema("httpprobe", probe_hosts_file(input_file, timeout=timeout, workers=workers))
 
     if json_output:
         if output:
@@ -312,24 +370,32 @@ def httpprobe(input_file: str, timeout: float, workers: int, output: Optional[st
     if output:
         write_json(output, result)
     print_errors(result.get("errors", []))
+    if quiet:
+        return
     table = Table(title=f"HTTP Probe Results for {input_file}")
     table.add_column("Host", style="green")
-    table.add_column("URL", overflow="fold")
     table.add_column("Status", justify="right")
+    table.add_column("Length", justify="right")
+    table.add_column("Server", overflow="fold")
+    table.add_column("Tech", overflow="fold")
     table.add_column("Title", overflow="fold")
+    table.add_column("URL", overflow="fold")
     table.add_column("Error", overflow="fold")
     for item in result.get("results", []):
         host = str(item.get("host") or "")
         for probe in item.get("probes", []):
             table.add_row(
                 host,
-                str(probe.get("final_url") or probe.get("url") or ""),
                 str(probe.get("status_code") or ""),
+                str(probe.get("content_length") if probe.get("content_length") is not None else ""),
+                str(probe.get("server") or ""),
+                ", ".join(probe.get("technologies", []) or []),
                 str(probe.get("title") or ""),
+                str(probe.get("final_url") or probe.get("url") or ""),
                 str(probe.get("error") or ""),
             )
     if not result.get("results"):
-        table.add_row("None", "", "", "", "No targets probed")
+        table.add_row("None", "", "", "", "", "", "", "No targets probed")
     console.print(table)
     if output:
         console.print(f"[bold green]Output written:[/bold green] {output}")
@@ -340,9 +406,10 @@ def httpprobe(input_file: str, timeout: float, workers: int, output: Optional[st
 @click.option("-s", "--scope", required=True, type=click.Path(exists=True, dir_okay=False), help="File containing scope rules")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def scopecheck(targets: str, scope: str, output: Optional[str], json_output: bool) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def scopecheck(targets: str, scope: str, output: Optional[str], json_output: bool, quiet: bool) -> None:
     """Separate targets into in-scope and out-of-scope groups."""
-    result = check_targets(targets, scope)
+    result = with_schema("scopecheck", check_targets(targets, scope))
 
     if json_output:
         if output:
@@ -353,6 +420,8 @@ def scopecheck(targets: str, scope: str, output: Optional[str], json_output: boo
     if output:
         write_json(output, result)
     print_errors(result.get("errors", []))
+    if quiet:
+        return
 
     in_table = Table(title="In-Scope Targets")
     in_table.add_column("Target", style="green")
@@ -380,21 +449,32 @@ def scopecheck(targets: str, scope: str, output: Optional[str], json_output: boo
 @click.option("--github-owner", help="Optional GitHub owner or organization to include in the report")
 @click.option("--github-repo", help="Optional GitHub repository to include in the report")
 @click.option("--scope", "scope_file", type=click.Path(exists=True, dir_okay=False), help="Optional scope file for report scope notes")
-@click.option("--from-json", "from_json", type=click.Path(exists=True, dir_okay=False), help="Build report from saved JSON findings")
+@click.option(
+    "--from-json",
+    "from_json",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Build a report from saved JSON; repeat to merge files",
+)
 @click.option("--output", required=True, type=click.Path(dir_okay=False), help="Markdown report output path")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON summary")
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
 def report(
     domain: Optional[str],
     github_owner: Optional[str],
     github_repo: Optional[str],
     scope_file: Optional[str],
-    from_json: Optional[str],
+    from_json: tuple[str, ...],
     output: str,
     json_output: bool,
+    quiet: bool,
 ) -> None:
     """Generate a markdown recon report for a domain."""
-    if not json_output:
-        print_status(f"Generating report for {domain or from_json}...")
+    if domain and from_json:
+        raise click.ClickException("Use either --domain or --from-json, not both.")
+    source_label = domain or ", ".join(from_json)
+    if not json_output and not quiet:
+        print_status(f"Generating report for {source_label}...")
     if from_json:
         result = generate_report_from_json(from_json, output)
     else:
@@ -402,6 +482,7 @@ def report(
             raise click.ClickException("Either --domain or --from-json is required.")
         result = generate_report(domain, output, github_owner=github_owner, github_repo=github_repo, scope_file=scope_file)
 
+    result = with_schema("report", result)
     if result.get("hard_failure"):
         if json_output:
             print_json(result)
@@ -414,6 +495,8 @@ def report(
         return
 
     print_errors(result.get("errors", []))
+    if quiet:
+        return
     console.print(f"[bold green]Report written:[/bold green] {output}")
 
 
@@ -421,9 +504,10 @@ def report(
 @click.option("--report", "report_path", required=True, type=click.Path(exists=True, dir_okay=False), help="Markdown report to summarize")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional text output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def summarize(report_path: str, output: Optional[str], json_output: bool) -> None:
+@click.option("-q", "--quiet", is_flag=True, help="Suppress normal terminal output")
+def summarize(report_path: str, output: Optional[str], json_output: bool, quiet: bool) -> None:
     """Create an AI-ready summary from a markdown report without calling an AI API."""
-    result = summarize_report(report_path)
+    result = with_schema("summarize", summarize_report(report_path))
     if output:
         if json_output:
             write_json(output, result)
@@ -435,6 +519,8 @@ def summarize(report_path: str, output: Optional[str], json_output: bool) -> Non
         return
 
     print_errors(result.get("errors", []))
+    if quiet:
+        return
     console.print(str(result.get("summary") or ""))
     if output:
         console.print(f"[bold green]Output written:[/bold green] {output}")
