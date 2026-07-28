@@ -8,17 +8,31 @@
 |_| \_\_____\____\___/|_| \_|_|   \___/|_| \_\\____|_____|
 ```
 
-ReconForge is a lightweight AI-assisted recon toolkit for authorized bug bounty and security testing. It collects first-pass recon data, keeps output readable, and includes AI triage prompts without adding exploit automation or aggressive defaults.
+ReconForge is a lightweight, scope-aware recon toolkit for authorized bug bounty and security testing. It collects first-pass recon data, keeps output readable and scriptable, and generates reports without adding exploit automation or aggressive defaults.
+
+## What ReconForge Is
+
+- A safe first-pass collection and reporting layer.
+- A scope-checking tool for reducing out-of-scope mistakes.
+- A lightweight way to combine passive subdomains, bounded port checks, HTTP probing, GitHub metadata, and markdown/JSON output.
+
+## What ReconForge Is Not
+
+- It is not a vulnerability scanner or exploit tool.
+- It does not replace Amass or subfinder for serious subdomain enumeration.
+- It does not replace httpx for large-scale HTTP probing.
+- It does not replace naabu or nmap for comprehensive port scanning.
+- It does not replace nuclei or manual validation for vulnerability checks.
 
 ## Features
 
 - Subdomain discovery from public sources: crt.sh, HackerTarget hostsearch, and Cert Spotter.
-- Common TCP port checks for 80, 443, 8080, 8443, 22, 21, 3306, and 6379.
+- Bounded concurrent TCP checks with safe, normal, and explicitly opt-in deep profiles.
 - Clear port statuses: `open`, `closed`, `filtered/timeout`, and `error`.
 - HTTP technology detection from headers, cookies, security headers, CDN hints, and light body fingerprints.
 - Scope checking for exact hosts, wildcard domains, IP addresses, and CIDR ranges.
 - GitHub repository recon from the public GitHub API, with optional `GITHUB_TOKEN` support.
-- HTTP/HTTPS probing for saved host lists.
+- Bounded concurrent HTTP/HTTPS probing for saved host lists.
 - Markdown reports with collection notes when providers fail.
 - Optional JSON output for automation.
 - Optional scope notes in markdown reports.
@@ -37,6 +51,7 @@ py -m pip install --user pipx
 py -m pipx ensurepath
 pipx install .
 reconforge --help
+reconforge --version
 ```
 
 If your Python Scripts directory is not on PATH, you can still run:
@@ -102,6 +117,7 @@ reconforge portscan -t example.com
 reconforge portscan -t example.com --profile normal
 reconforge portscan -t example.com --profile deep
 reconforge portscan -t example.com --ports 80,443,3000
+reconforge portscan -t example.com --workers 8
 reconforge portscan -t example.com --json
 ```
 
@@ -123,6 +139,7 @@ reconforge techdetect -u https://example.com --output tech.json
 
 ```powershell
 reconforge httpprobe -i subdomains.txt
+reconforge httpprobe -i subdomains.txt --workers 8
 reconforge httpprobe -i subdomains.txt --json
 reconforge httpprobe -i subdomains.txt --output http.json
 ```
@@ -221,7 +238,8 @@ ReconForge can read optional defaults from `reconforge.json` in the current fold
   "portscan": {
     "profile": "normal",
     "ports": [80, 443, 3000],
-    "timeout": 2.0
+    "timeout": 2.0,
+    "workers": 8
   }
 }
 ```
@@ -238,6 +256,28 @@ GitHub recon collects public metadata only:
 - Basic tech and recon notes such as Docker usage, CI/CD workflows, environment examples, Python/Node/Rust/Go indicators, frontend framework indicators, and possible deployment files.
 
 ReconForge does not claim vulnerabilities from metadata alone. Treat these notes as leads to validate manually.
+
+## Recommended Toolchain
+
+ReconForge is designed to work alongside mature tools:
+
+```text
+subfinder / Amass
+        |
+        v
+reconforge scopecheck
+        |
+        v
+reconforge httpprobe
+        |
+        v
+httpx / naabu / nmap
+        |
+        v
+nuclei and manual validation
+```
+
+Use ReconForge for scope-aware first-pass collection and reports. Use the specialized tools for deeper, high-scale work.
 
 ## AI Triage Prompts
 
@@ -265,12 +305,11 @@ reconforge/
   httpprobe.py
   output.py
   portscan.py
-  scanner.py
+  report.py
   scopecheck.py
   summarize.py
   subdomains.py
   techdetect.py
-  report.py
 tests/
   test_core.py
 prompts/
@@ -279,6 +318,7 @@ examples/
   example_report.md
   reconforge.json
 requirements.txt
+pyproject.toml
 setup.py
 README.md
 ```

@@ -2,6 +2,7 @@
   "portscan": {
     "profile": "normal",
     "ports": [80, 443, 3000],
-    "timeout": 2.0
+    "timeout": 2.0,
+    "workers": 8
   }
 }

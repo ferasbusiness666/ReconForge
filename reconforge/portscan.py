@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import socket
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Dict, List, Optional
 
 SAFE_PORTS = [80, 443, 8080, 8443, 22, 21, 3306, 6379]
@@ -76,8 +78,28 @@ def scan_port(host: str, port: int, timeout: float = 2.0) -> Dict[str, object]:
     return result
 
 
-def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 2.0, profile: str = "safe") -> Dict[str, object]:
-    """Scan common TCP ports on *host* with socket timeouts."""
+def _scan_port_safely(host: str, port: int, timeout: float) -> Dict[str, object]:
+    """Run one port check without allowing an unexpected exception to stop a scan."""
+    try:
+        return scan_port(host, port, timeout=timeout)
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        return {
+            "host": host,
+            "port": port,
+            "status": "error",
+            "banner": "",
+            "error": f"Unexpected scan error: {exc}",
+        }
+
+
+def scan_ports(
+    host: str,
+    ports: Optional[List[int]] = None,
+    timeout: float = 2.0,
+    profile: str = "safe",
+    workers: int = 8,
+) -> Dict[str, object]:
+    """Scan TCP ports concurrently with bounded workers and partial results."""
     try:
         targets = ports or resolve_ports(profile=profile)
     except ValueError as exc:
@@ -85,13 +107,21 @@ def scan_ports(host: str, ports: Optional[List[int]] = None, timeout: float = 2.
     if not host or not host.strip():
         return {"host": host, "results": [], "errors": ["Target host is required."]}
 
-    results = []
-    errors = []
-    for port in targets:
-        row = scan_port(host.strip(), int(port), timeout=timeout)
-        if row["status"] == "error":
-            errors.append(str(row["error"]))
-            results.append(row)
-            break
-        results.append(row)
-    return {"host": host.strip(), "results": results, "errors": errors}
+    cleaned_host = host.strip()
+    normalized_targets = [int(port) for port in targets]
+    max_workers = max(1, min(int(workers), len(normalized_targets), 32))
+    worker = partial(_scan_port_safely, cleaned_host, timeout=timeout)
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="reconforge-port") as executor:
+        results = list(executor.map(worker, normalized_targets))
+
+    errors = [
+        f"{row['port']}: {row.get('error') or 'unknown socket error'}"
+        for row in results
+        if row.get("status") == "error"
+    ]
+    return {
+        "host": cleaned_host,
+        "results": results,
+        "errors": errors,
+        "workers": max_workers,
+    }

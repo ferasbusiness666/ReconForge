@@ -12,11 +12,18 @@ from unittest.mock import Mock, patch
 from click.testing import CliRunner
 import requests
 
+from reconforge import __version__
 from reconforge.cli import cli
 from reconforge.config import load_config
-from reconforge.github_recon import detect_repo_tech, github_headers, parse_repo
-from reconforge.httpprobe import extract_title, probe_host
-from reconforge.portscan import resolve_ports, scan_port
+from reconforge.github_recon import (
+    detect_repo_tech,
+    fetch_interesting_files,
+    github_get,
+    github_headers,
+    parse_repo,
+)
+from reconforge.httpprobe import extract_title, probe_host, probe_hosts_file
+from reconforge.portscan import resolve_ports, scan_port, scan_ports
 from reconforge.report import generate_report, generate_report_from_json
 from reconforge.summarize import summarize_report
 from reconforge.subdomains import fetch_subdomains
@@ -51,6 +58,20 @@ class PortScanTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "open")
         self.assertEqual(result["banner"], "No banner")
+
+    @patch("reconforge.portscan.scan_port")
+    def test_scan_ports_keeps_partial_results_after_port_error(self, mock_scan: Mock) -> None:
+        mock_scan.side_effect = [
+            {"host": "example.com", "port": 80, "status": "open", "banner": "HTTP", "error": ""},
+            {"host": "example.com", "port": 443, "status": "error", "banner": "", "error": "socket failed"},
+            {"host": "example.com", "port": 8080, "status": "closed", "banner": "", "error": "Connection refused"},
+        ]
+
+        result = scan_ports("example.com", ports=[80, 443, 8080], workers=2)
+
+        self.assertEqual([row["port"] for row in result["results"]], [80, 443, 8080])
+        self.assertEqual(result["results"][2]["status"], "closed")
+        self.assertIn("443: socket failed", result["errors"])
 
 
 class ReportTests(unittest.TestCase):
@@ -106,6 +127,34 @@ class ReportTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(result["output"], str(output))
             self.assertIn("api.example.com", output.read_text(encoding="utf-8"))
+
+    @patch("reconforge.report.detect_technologies", side_effect=RuntimeError("tech collector failed"))
+    @patch("reconforge.report.scan_ports", side_effect=RuntimeError("port collector failed"))
+    @patch("reconforge.report.fetch_subdomains", return_value=([], ["provider failed"]))
+    def test_generate_report_writes_collection_notes_after_collector_failures(
+        self, _subs: Mock, _ports: Mock, _tech: Mock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "report.md"
+
+            result = generate_report("example.com", str(output))
+
+            markdown = output.read_text(encoding="utf-8")
+            self.assertIn("## Collection Notes", markdown)
+            self.assertIn("provider failed", markdown)
+            self.assertIn("Port scan failed for example.com", markdown)
+            self.assertIn("Technology detection failed for example.com", markdown)
+            self.assertGreaterEqual(len(result["errors"]), 3)
+
+    def test_report_from_malformed_json_is_hard_failure(self) -> None:
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("bad.json").write_text("{not json", encoding="utf-8")
+            result = runner.invoke(cli, ["report", "--from-json", "bad.json", "--output", "report.md"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Invalid JSON", result.output)
+        self.assertNotIn("Report written", result.output)
 
 
 class SummaryTests(unittest.TestCase):
@@ -163,6 +212,26 @@ class CliJsonTests(unittest.TestCase):
         called_ports = mock_scan.call_args.kwargs["ports"]
         self.assertIn(3000, called_ports)
 
+    def test_cli_version_matches_package_version(self) -> None:
+        result = CliRunner().invoke(cli, ["--version"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(__version__, result.output)
+
+    def test_invalid_subdomain_input_returns_nonzero_pure_json(self) -> None:
+        result = CliRunner().invoke(cli, ["subdomains", "-d", "not-a-domain", "--json"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        payload = json.loads(result.output)
+        self.assertIn("Invalid domain", payload["errors"][0])
+
+    def test_invalid_techdetect_url_returns_nonzero_pure_json(self) -> None:
+        result = CliRunner().invoke(cli, ["techdetect", "-u", "example.com", "--json"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        payload = json.loads(result.output)
+        self.assertIn("must start with", payload["errors"][0])
+
 
 class ConfigTests(unittest.TestCase):
     """Config loading behavior."""
@@ -201,6 +270,24 @@ class HttpProbeTests(unittest.TestCase):
         self.assertEqual(rows[0]["url"], "https://example.com")
         self.assertEqual(rows[0]["title"], "Example")
         self.assertEqual(rows[1]["status_code"], 301)
+
+    @patch("reconforge.httpprobe.probe_host")
+    def test_probe_hosts_file_keeps_results_when_one_host_fails(self, mock_probe: Mock) -> None:
+        def fake_probe(host: str, timeout: float) -> list[dict[str, object]]:
+            if host == "bad.example":
+                raise RuntimeError("unexpected probe failure")
+            return [{"url": f"https://{host}", "ok": True, "status_code": 200, "error": ""}]
+
+        mock_probe.side_effect = fake_probe
+        with tempfile.TemporaryDirectory() as temp_dir:
+            targets = Path(temp_dir) / "targets.txt"
+            targets.write_text("good.example\nbad.example\nlater.example\n", encoding="utf-8")
+
+            result = probe_hosts_file(str(targets), timeout=0.1, workers=2)
+
+        self.assertEqual([row["host"] for row in result["results"]], ["good.example", "bad.example", "later.example"])
+        self.assertIn("bad.example: unexpected probe failure", result["errors"])
+        self.assertTrue(result["results"][2]["probes"][0]["ok"])
 
 
 class SubdomainTests(unittest.TestCase):
@@ -269,6 +356,49 @@ class GitHubReconTests(unittest.TestCase):
         self.assertIn("Security policy file present", notes)
         self.assertIn("Dependency automation detected", notes)
         self.assertIn("Infrastructure-as-code indicators detected", notes)
+
+    @patch("reconforge.github_recon.requests.get")
+    def test_github_get_reports_rate_limit_without_token(self, mock_get: Mock) -> None:
+        response = Mock()
+        response.status_code = 403
+        response.headers = {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Limit": "60",
+            "X-RateLimit-Reset": "1780000000",
+        }
+        response.reason = "rate limit exceeded"
+        mock_get.return_value = response
+
+        data, errors, status, rate_limit = github_get("/users/example", token=None, timeout=0.1)
+
+        self.assertIsNone(data)
+        self.assertEqual(status, 403)
+        self.assertIn("GITHUB_TOKEN", errors[0])
+        self.assertEqual(rate_limit["remaining"], 0)
+        self.assertNotIn("secret", " ".join(errors))
+
+    @patch("reconforge.github_recon.github_get")
+    def test_fetch_interesting_files_uses_single_tree_request(self, mock_get: Mock) -> None:
+        mock_get.return_value = (
+            {
+                "tree": [
+                    {"path": "README.md", "type": "blob"},
+                    {"path": "Dockerfile", "type": "blob"},
+                    {"path": ".github/workflows/ci.yml", "type": "blob"},
+                    {"path": "src/app.py", "type": "blob"},
+                ]
+            },
+            [],
+            200,
+            {"remaining": 58, "limit": 60, "reset": 1780000000},
+        )
+
+        files, errors, rate_limit = fetch_interesting_files("acme", "demo", "main", None, 0.1)
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(files, [".github/workflows/ci.yml", "Dockerfile", "README.md"])
+        self.assertEqual(errors, [])
+        self.assertEqual(rate_limit["remaining"], 58)
 
 
 if __name__ == "__main__":

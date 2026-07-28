@@ -9,6 +9,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from . import __version__
 from .config import config_section, load_config
 from .github_recon import fetch_github_recon
 from .httpprobe import probe_hosts_file
@@ -40,6 +41,7 @@ def print_json(data: object) -> None:
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name="reconforge")
 def cli() -> None:
     """AI-assisted recon toolkit for authorized bug bounty testing."""
 
@@ -54,6 +56,13 @@ def subdomains(domain: str, output: Optional[str], json_output: bool) -> None:
         print_status(f"Querying public subdomain sources for {domain}...")
     results, errors = fetch_subdomains(domain)
     payload = {"domain": domain, "subdomains": results, "errors": errors}
+    hard_failure = next((error for error in errors if error.startswith("Invalid domain:")), None)
+
+    if hard_failure:
+        if json_output:
+            print_json(payload)
+            raise click.exceptions.Exit(2)
+        raise click.ClickException(hard_failure)
 
     if json_output:
         if output:
@@ -80,10 +89,20 @@ def subdomains(domain: str, output: Optional[str], json_output: bool) -> None:
 @click.option("--profile", type=click.Choice(["safe", "normal", "deep"]), help="Port scan profile")
 @click.option("--ports", help="Comma-separated custom ports; overrides --profile")
 @click.option("--timeout", type=float, help="TCP connect timeout in seconds")
+@click.option("--workers", type=click.IntRange(1, 32), help="Concurrent port checks")
 @click.option("--config", "config_path", default="reconforge.json", show_default=True, help="Optional JSON config file")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def portscan(target: str, profile: Optional[str], ports: Optional[str], timeout: Optional[float], config_path: str, output: Optional[str], json_output: bool) -> None:
+def portscan(
+    target: str,
+    profile: Optional[str],
+    ports: Optional[str],
+    timeout: Optional[float],
+    workers: Optional[int],
+    config_path: str,
+    output: Optional[str],
+    json_output: bool,
+) -> None:
     """Scan common TCP ports for a target host."""
     config, config_errors = load_config(config_path)
     portscan_config = config_section(config, "portscan")
@@ -93,6 +112,8 @@ def portscan(target: str, profile: Optional[str], ports: Optional[str], timeout:
     if ports_text is None and config_ports:
         ports_text = ",".join(str(port) for port in config_ports) if isinstance(config_ports, list) else str(config_ports)
     resolved_timeout = timeout if timeout is not None else float(portscan_config.get("timeout") or 2.0)
+    resolved_workers = workers if workers is not None else int(portscan_config.get("workers") or 8)
+    resolved_workers = max(1, min(resolved_workers, 32))
 
     if not json_output:
         print_status(f"Scanning common ports on {target}...")
@@ -100,7 +121,13 @@ def portscan(target: str, profile: Optional[str], ports: Optional[str], timeout:
         resolved_ports = resolve_ports(profile=resolved_profile, ports_text=ports_text)
     except ValueError as exc:
         raise click.BadParameter(str(exc), param_hint="--ports") from exc
-    scan = scan_ports(target, ports=resolved_ports, timeout=resolved_timeout, profile=resolved_profile)
+    scan = scan_ports(
+        target,
+        ports=resolved_ports,
+        timeout=resolved_timeout,
+        profile=resolved_profile,
+        workers=resolved_workers,
+    )
     scan["profile"] = resolved_profile
     scan["errors"] = config_errors + list(scan.get("errors", []))
 
@@ -142,6 +169,16 @@ def techdetect(url: str, output: Optional[str], json_output: bool) -> None:
     if not json_output:
         print_status(f"Fingerprinting {url}...")
     result = detect_technologies(url)
+    hard_failure = next(
+        (error for error in result.get("errors", []) if str(error).startswith("URL must start")),
+        None,
+    )
+
+    if hard_failure:
+        if json_output:
+            print_json(result)
+            raise click.exceptions.Exit(2)
+        raise click.ClickException(str(hard_failure))
 
     if json_output:
         if output:
@@ -244,6 +281,12 @@ def github(owner: str, repo: Optional[str] = None, output: Optional[str] = None,
     if not repos:
         details.add_row("None", "-", "-", "-")
     console.print(details)
+    rate_limit = result.get("rate_limit", {}) or {}
+    if rate_limit.get("remaining") is not None:
+        console.print(
+            "[dim]GitHub API rate limit: "
+            f"{rate_limit.get('remaining')}/{rate_limit.get('limit') or '?'} remaining[/dim]"
+        )
     if output:
         console.print(f"[bold green]Output written:[/bold green] {output}")
 
@@ -251,13 +294,14 @@ def github(owner: str, repo: Optional[str] = None, output: Optional[str] = None,
 @cli.command()
 @click.option("-i", "--input", "input_file", required=True, type=click.Path(exists=True, dir_okay=False), help="File containing hosts or URLs")
 @click.option("--timeout", default=5.0, show_default=True, help="Request timeout in seconds")
+@click.option("--workers", type=click.IntRange(1, 32), default=8, show_default=True, help="Concurrent host probes")
 @click.option("--output", type=click.Path(dir_okay=False), help="Optional JSON output file")
 @click.option("--json", "json_output", is_flag=True, help="Print machine-readable JSON output")
-def httpprobe(input_file: str, timeout: float, output: Optional[str], json_output: bool) -> None:
+def httpprobe(input_file: str, timeout: float, workers: int, output: Optional[str], json_output: bool) -> None:
     """Probe HTTP and HTTPS reachability for hosts from a file."""
     if not json_output:
         print_status(f"Probing HTTP/HTTPS targets from {input_file}...")
-    result = probe_hosts_file(input_file, timeout=timeout)
+    result = probe_hosts_file(input_file, timeout=timeout, workers=workers)
 
     if json_output:
         if output:
@@ -357,6 +401,13 @@ def report(
         if not domain:
             raise click.ClickException("Either --domain or --from-json is required.")
         result = generate_report(domain, output, github_owner=github_owner, github_repo=github_repo, scope_file=scope_file)
+
+    if result.get("hard_failure"):
+        if json_output:
+            print_json(result)
+            raise click.exceptions.Exit(1)
+        errors = result.get("errors", []) or ["Report generation failed."]
+        raise click.ClickException(str(errors[0]))
 
     if json_output:
         print_json(result)

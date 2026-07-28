@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Tuple
+from urllib.parse import quote
 
 import requests
 
@@ -52,27 +54,60 @@ def github_headers(token: Optional[str] = None) -> Dict[str, str]:
     return headers
 
 
-def github_get(path: str, token: Optional[str], timeout: float) -> Tuple[Optional[object], List[str], int]:
-    """GET a GitHub API path and return JSON data, errors, and status code."""
+def _integer_header(headers: object, name: str) -> Optional[int]:
+    """Read an integer HTTP header without raising on malformed values."""
+    try:
+        value = headers.get(name)  # type: ignore[union-attr]
+        return int(value) if value is not None else None
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _rate_limit_details(headers: object) -> Dict[str, Optional[int]]:
+    """Return normalized GitHub rate-limit header values."""
+    return {
+        "limit": _integer_header(headers, "X-RateLimit-Limit"),
+        "remaining": _integer_header(headers, "X-RateLimit-Remaining"),
+        "reset": _integer_header(headers, "X-RateLimit-Reset"),
+    }
+
+
+def _rate_limit_message(rate_limit: Dict[str, Optional[int]]) -> str:
+    """Build a clear rate-limit message without exposing authentication data."""
+    reset = rate_limit.get("reset")
+    reset_note = ""
+    if reset is not None:
+        reset_time = datetime.fromtimestamp(reset, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        reset_note = f" Limit resets at {reset_time}."
+    return f"GitHub API rate limit reached.{reset_note} Set GITHUB_TOKEN for higher limits."
+
+
+def github_get(
+    path: str,
+    token: Optional[str],
+    timeout: float,
+) -> Tuple[Optional[object], List[str], int, Dict[str, Optional[int]]]:
+    """GET a GitHub API path and return JSON data, errors, status, and rate limit."""
     url = f"{GITHUB_API}{path}"
     try:
         response = requests.get(url, headers=github_headers(token), timeout=timeout)
     except requests.exceptions.Timeout:
-        return None, [f"GitHub request timed out after {timeout:g} seconds."], 0
+        return None, [f"GitHub request timed out after {timeout:g} seconds."], 0, _rate_limit_details({})
     except requests.exceptions.RequestException as exc:
-        return None, [f"GitHub network error: {exc}"], 0
+        return None, [f"GitHub network error: {exc}"], 0, _rate_limit_details({})
 
-    if response.status_code == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
-        return None, ["GitHub API rate limit reached. Set GITHUB_TOKEN for higher limits."], response.status_code
+    rate_limit = _rate_limit_details(response.headers)
+    if response.status_code in (403, 429) and rate_limit.get("remaining") == 0:
+        return None, [_rate_limit_message(rate_limit)], response.status_code, rate_limit
     if response.status_code == 404:
-        return None, ["GitHub resource not found."], response.status_code
+        return None, ["GitHub resource not found."], response.status_code, rate_limit
     if response.status_code >= 400:
-        return None, [f"GitHub API error {response.status_code}: {response.reason}"], response.status_code
+        return None, [f"GitHub API error {response.status_code}: {response.reason}"], response.status_code, rate_limit
 
     try:
-        return response.json(), [], response.status_code
+        return response.json(), [], response.status_code, rate_limit
     except ValueError:
-        return None, ["GitHub returned malformed JSON."], response.status_code
+        return None, ["GitHub returned malformed JSON."], response.status_code, rate_limit
 
 
 def detect_repo_tech(language: Optional[str], files: Iterable[str]) -> Tuple[List[str], List[str]]:
@@ -149,31 +184,51 @@ def parse_repo(repo: Dict[str, object], files: Optional[List[str]] = None) -> Di
     }
 
 
-def fetch_interesting_files(owner: str, repo: str, branch: str, token: Optional[str], timeout: float) -> Tuple[List[str], List[str]]:
-    """Check for a small allowlist of interesting files in a repository."""
-    found: List[str] = []
-    errors: List[str] = []
+def _is_interesting_path(path: str) -> bool:
+    """Return whether a Git tree path is relevant to lightweight repo recon."""
+    normalized = path.strip().lower()
+    exact_paths = {item.lower() for item in INTERESTING_FILES}
+    if normalized in exact_paths:
+        return True
+    if normalized.startswith(".github/workflows/") and normalized.endswith((".yml", ".yaml")):
+        return True
+    if normalized.endswith(".tf"):
+        return True
+    return normalized.endswith(("/chart.yaml", "/kustomization.yaml"))
 
-    for path in INTERESTING_FILES:
-        data, request_errors, status = github_get(f"/repos/{owner}/{repo}/contents/{path}?ref={branch}", token, timeout)
-        if status == 200 and data is not None:
-            found.append(path)
-        elif status not in (0, 404):
-            errors.extend([f"{repo}: {error}" for error in request_errors])
 
-    workflows, workflow_errors, status = github_get(f"/repos/{owner}/{repo}/contents/.github/workflows?ref={branch}", token, timeout)
-    if status == 200 and isinstance(workflows, list):
-        for item in workflows:
-            if not isinstance(item, dict):
+def fetch_interesting_files(
+    owner: str,
+    repo: str,
+    branch: str,
+    token: Optional[str],
+    timeout: float,
+) -> Tuple[List[str], List[str], Dict[str, Optional[int]]]:
+    """Collect interesting paths with one recursive Git tree request."""
+    encoded_branch = quote(branch, safe="")
+    data, request_errors, status, rate_limit = github_get(
+        f"/repos/{owner}/{repo}/git/trees/{encoded_branch}?recursive=1",
+        token,
+        timeout,
+    )
+    if status != 200 or not isinstance(data, dict):
+        errors = [f"{repo}: {error}" for error in request_errors]
+        return [], errors, rate_limit
+
+    found = []
+    tree = data.get("tree")
+    if isinstance(tree, list):
+        for item in tree:
+            if not isinstance(item, dict) or item.get("type") != "blob":
                 continue
-            name = str(item.get("name") or "")
             path = str(item.get("path") or "")
-            if name.endswith((".yml", ".yaml")) and path:
+            if path and _is_interesting_path(path):
                 found.append(path)
-    elif status not in (0, 404):
-        errors.extend([f"{repo}: {error}" for error in workflow_errors])
 
-    return sorted(set(found)), errors
+    errors = []
+    if data.get("truncated") is True:
+        errors.append(f"{repo}: GitHub tree response was truncated; interesting files may be incomplete.")
+    return sorted(set(found)), errors, rate_limit
 
 
 def fetch_github_recon(
@@ -188,32 +243,50 @@ def fetch_github_recon(
     cleaned_repo = repo.strip() if repo else ""
     errors: List[str] = []
     repos: List[Dict[str, object]] = []
+    rate_limit: Dict[str, Optional[int]] = _rate_limit_details({})
     token = token if token is not None else os.environ.get("GITHUB_TOKEN")
 
     if not cleaned_owner:
-        return {"owner": owner, "repos": [], "errors": ["GitHub owner is required."]}
+        return {"owner": owner, "repos": [], "errors": ["GitHub owner is required."], "rate_limit": rate_limit}
 
     if cleaned_repo:
-        data, request_errors, status = github_get(f"/repos/{cleaned_owner}/{cleaned_repo}", token, timeout)
+        data, request_errors, status, rate_limit = github_get(f"/repos/{cleaned_owner}/{cleaned_repo}", token, timeout)
         if status == 404:
-            return {"owner": cleaned_owner, "repo": cleaned_repo, "repos": [], "errors": [f"GitHub repo not found: {cleaned_owner}/{cleaned_repo}"]}
+            return {
+                "owner": cleaned_owner,
+                "repo": cleaned_repo,
+                "repos": [],
+                "errors": [f"GitHub repo not found: {cleaned_owner}/{cleaned_repo}"],
+                "rate_limit": rate_limit,
+            }
         if request_errors:
-            return {"owner": cleaned_owner, "repo": cleaned_repo, "repos": [], "errors": request_errors}
+            return {
+                "owner": cleaned_owner,
+                "repo": cleaned_repo,
+                "repos": [],
+                "errors": request_errors,
+                "rate_limit": rate_limit,
+            }
         repo_items = [data] if isinstance(data, dict) else []
     else:
-        owner_data, owner_errors, owner_status = github_get(f"/users/{cleaned_owner}", token, timeout)
+        owner_data, owner_errors, owner_status, rate_limit = github_get(f"/users/{cleaned_owner}", token, timeout)
         if owner_status == 404:
-            return {"owner": cleaned_owner, "repos": [], "errors": [f"GitHub owner not found: {cleaned_owner}"]}
+            return {
+                "owner": cleaned_owner,
+                "repos": [],
+                "errors": [f"GitHub owner not found: {cleaned_owner}"],
+                "rate_limit": rate_limit,
+            }
         if owner_errors:
-            return {"owner": cleaned_owner, "repos": [], "errors": owner_errors}
+            return {"owner": cleaned_owner, "repos": [], "errors": owner_errors, "rate_limit": rate_limit}
 
         owner_type = ""
         if isinstance(owner_data, dict):
             owner_type = str(owner_data.get("type") or "")
         path = f"/orgs/{cleaned_owner}/repos" if owner_type == "Organization" else f"/users/{cleaned_owner}/repos"
-        data, request_errors, status = github_get(f"{path}?sort=updated&per_page={max_repos}", token, timeout)
+        data, request_errors, status, rate_limit = github_get(f"{path}?sort=updated&per_page={max_repos}", token, timeout)
         if request_errors:
-            return {"owner": cleaned_owner, "repos": [], "errors": request_errors}
+            return {"owner": cleaned_owner, "repos": [], "errors": request_errors, "rate_limit": rate_limit}
         repo_items = data if isinstance(data, list) else []
 
     for repo_data in repo_items[:max_repos]:
@@ -223,8 +296,14 @@ def fetch_github_recon(
         branch = str(repo_data.get("default_branch") or "")
         files: List[str] = []
         if name and branch:
-            files, file_errors = fetch_interesting_files(cleaned_owner, name, branch, token, timeout)
+            files, file_errors, rate_limit = fetch_interesting_files(cleaned_owner, name, branch, token, timeout)
             errors.extend(file_errors)
         repos.append(parse_repo(repo_data, files))
 
-    return {"owner": cleaned_owner, "repo": cleaned_repo or None, "repos": repos, "errors": errors}
+    return {
+        "owner": cleaned_owner,
+        "repo": cleaned_repo or None,
+        "repos": repos,
+        "errors": errors,
+        "rate_limit": rate_limit,
+    }

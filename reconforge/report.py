@@ -208,7 +208,13 @@ def generate_report(
     )
     output_path = ensure_parent(output)
     output_path.write_text(markdown, encoding="utf-8")
-    return {"output": output, "hosts": hosts, "scope_notes": scope_notes, "errors": errors}
+    return {
+        "output": output,
+        "written": True,
+        "hosts": hosts,
+        "scope_notes": scope_notes,
+        "errors": errors,
+    }
 
 
 def generate_report_from_json(input_path: str, output: str) -> Dict[str, object]:
@@ -216,16 +222,38 @@ def generate_report_from_json(input_path: str, output: str) -> Dict[str, object]
     try:
         findings = json.loads(Path(input_path).read_text(encoding="utf-8"))
     except OSError as exc:
-        return {"output": output, "errors": [f"Could not read {input_path}: {exc}"]}
+        return {
+            "output": output,
+            "written": False,
+            "hard_failure": True,
+            "errors": [f"Could not read {input_path}: {exc}"],
+        }
     except ValueError as exc:
-        return {"output": output, "errors": [f"Invalid JSON in {input_path}: {exc}"]}
+        return {
+            "output": output,
+            "written": False,
+            "hard_failure": True,
+            "errors": [f"Invalid JSON in {input_path}: {exc}"],
+        }
 
     if not isinstance(findings, dict):
-        return {"output": output, "errors": [f"Invalid findings structure in {input_path}."]}
+        return {
+            "output": output,
+            "written": False,
+            "hard_failure": True,
+            "errors": [f"Invalid findings structure in {input_path}."],
+        }
 
     domain = str(findings.get("domain") or findings.get("target") or "saved-recon")
     scope_notes = findings.get("scope_notes", []) if isinstance(findings.get("scope_notes", []), list) else []
     markdown = build_markdown_report(domain, findings, scope_notes=scope_notes)
     output_path = ensure_parent(output)
     output_path.write_text(markdown, encoding="utf-8")
-    return {"output": output, "hosts": list((findings.get("ports") or {}).keys()), "scope_notes": scope_notes, "errors": findings.get("errors", []) or []}
+    return {
+        "output": output,
+        "written": True,
+        "hard_failure": False,
+        "hosts": list((findings.get("ports") or {}).keys()),
+        "scope_notes": scope_notes,
+        "errors": findings.get("errors", []) or [],
+    }

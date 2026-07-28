@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Dict, List
 
@@ -49,14 +51,37 @@ def probe_host(host: str, timeout: float = 5.0) -> List[Dict[str, object]]:
     return [probe_url(f"https://{cleaned}", timeout=timeout), probe_url(f"http://{cleaned}", timeout=timeout)]
 
 
-def probe_hosts_file(path: str, timeout: float = 5.0) -> Dict[str, object]:
-    """Probe all non-empty hosts in a file."""
+def _probe_host_safely(host: str, timeout: float) -> Dict[str, object]:
+    """Probe one host without allowing an unexpected exception to stop the batch."""
+    try:
+        return {"host": host, "probes": probe_host(host, timeout=timeout), "error": ""}
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        return {"host": host, "probes": [], "error": str(exc)}
+
+
+def probe_hosts_file(path: str, timeout: float = 5.0, workers: int = 8) -> Dict[str, object]:
+    """Probe all non-empty hosts concurrently with bounded workers."""
     try:
         hosts = [line.strip() for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip() and not line.strip().startswith("#")]
     except OSError as exc:
         return {"input": path, "results": [], "errors": [f"Could not read {path}: {exc}"]}
 
-    results = []
-    for host in hosts:
-        results.append({"host": host, "probes": probe_host(host, timeout=timeout)})
-    return {"input": path, "results": results, "errors": []}
+    if not hosts:
+        return {"input": path, "results": [], "errors": [], "workers": 0}
+
+    max_workers = max(1, min(int(workers), len(hosts), 32))
+    worker = partial(_probe_host_safely, timeout=timeout)
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="reconforge-http") as executor:
+        results = list(executor.map(worker, hosts))
+
+    errors = [
+        f"{row['host']}: {row['error']}"
+        for row in results
+        if row.get("error")
+    ]
+    return {
+        "input": path,
+        "results": results,
+        "errors": errors,
+        "workers": max_workers,
+    }

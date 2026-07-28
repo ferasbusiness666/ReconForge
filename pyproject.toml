@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reconforge"
+dynamic = ["version"]
+description = "Lightweight, scope-aware recon CLI for authorized security testing"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+dependencies = [
+  "click>=8.1",
+  "requests>=2.31",
+  "rich>=13.0",
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+
+[project.scripts]
+reconforge = "reconforge.cli:cli"
+
+[tool.setuptools.dynamic]
+version = { attr = "reconforge.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["reconforge*"]
