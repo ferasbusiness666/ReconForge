@@ -344,6 +344,9 @@ reconforge/
   techdetect.py
 tests/
   test_core.py
+.github/
+  workflows/
+    ci.yml
 docs/
   json-output.md
 prompts/
@@ -368,6 +371,10 @@ reconforge httpprobe --help
 reconforge report --help
 reconforge summarize --help
 ```
+
+GitHub Actions runs these checks automatically on pushes to `main` and `2.0`, on pull requests, and on manual workflow runs. The test matrix covers Python 3.9 through 3.14 on Windows and Linux. A separate packaging job builds the wheel and source distribution, installs the wheel, smoke-tests both CLI entry points, and stores the distributions as a short-lived workflow artifact.
+
+Workflow: `.github/workflows/ci.yml`
 
 ## Authorized Testing Only
 
