@@ -61,16 +61,17 @@ class PortScanTests(unittest.TestCase):
 
     @patch("reconforge.portscan.scan_port")
     def test_scan_ports_keeps_partial_results_after_port_error(self, mock_scan: Mock) -> None:
-        mock_scan.side_effect = [
-            {"host": "example.com", "port": 80, "status": "open", "banner": "HTTP", "error": ""},
-            {"host": "example.com", "port": 443, "status": "error", "banner": "", "error": "socket failed"},
-            {"host": "example.com", "port": 8080, "status": "closed", "banner": "", "error": "Connection refused"},
-        ]
+        port_results = {
+            80: {"host": "example.com", "port": 80, "status": "open", "banner": "HTTP", "error": ""},
+            443: {"host": "example.com", "port": 443, "status": "error", "banner": "", "error": "socket failed"},
+            8080: {"host": "example.com", "port": 8080, "status": "closed", "banner": "", "error": "Connection refused"},
+        }
+        # Match results to requested ports regardless of worker scheduling.
+        mock_scan.side_effect = lambda host, port, timeout: port_results[port]
 
         result = scan_ports("example.com", ports=[80, 443, 8080], workers=2)
 
-        self.assertEqual([row["port"] for row in result["results"]], [80, 443, 8080])
-        self.assertEqual(result["results"][2]["status"], "closed")
+        self.assertEqual(result["results"], [port_results[port] for port in (80, 443, 8080)])
         self.assertIn("443: socket failed", result["errors"])
 
 
