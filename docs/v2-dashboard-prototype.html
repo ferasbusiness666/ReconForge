@@ -1,0 +1,1709 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>ReconForge v2 Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: one terminal window on a quiet desk. Inside: tabs on top, the screen, a key-hint bar, a status bar. */
+:root{
+  --desk:#0a0d12; --term:#10141b; --raise:#19202a; --sel:#1a2736; --line:#2a3242; --line-soft:#1d2430;
+  --fg:#dde2ea; --muted:#8e98aa; --dim:#646e80;
+  --heat:#f2a33a; --heat-ink:#1b1200; --focus:#79c4e6;
+  --ok:#62cc8e; --warn:#e6c35c; --bad:#ff6f6f;
+  --shadow:0 24px 60px -20px rgba(0,0,0,.55);
+  --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --desk:#e3e7ed; --term:#f9fafb; --raise:#edf0f4; --sel:#dde9f4; --line:#c9d0db; --line-soft:#e1e5eb;
+    --fg:#18202c; --muted:#525d6f; --dim:#7d8798;
+    --heat:#a65c00; --heat-ink:#ffffff; --focus:#1b6c9b;
+    --ok:#1c874a; --warn:#8a6600; --bad:#c23333;
+    --shadow:0 24px 60px -24px rgba(20,30,50,.28);
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --desk:#e3e7ed; --term:#f9fafb; --raise:#edf0f4; --sel:#dde9f4; --line:#c9d0db; --line-soft:#e1e5eb;
+  --fg:#18202c; --muted:#525d6f; --dim:#7d8798;
+  --heat:#a65c00; --heat-ink:#ffffff; --focus:#1b6c9b;
+  --ok:#1c874a; --warn:#8a6600; --bad:#c23333;
+  --shadow:0 24px 60px -24px rgba(20,30,50,.28);
+  color-scheme:light;
+}
+/* In-app skins (Settings > Appearance) override the tokens inside the terminal only. */
+.term[data-skin="forge"]{
+  --term:#10141b; --raise:#19202a; --sel:#1a2736; --line:#2a3242; --line-soft:#1d2430;
+  --fg:#dde2ea; --muted:#8e98aa; --dim:#646e80; --heat:#f2a33a; --heat-ink:#1b1200; --focus:#79c4e6;
+  --ok:#62cc8e; --warn:#e6c35c; --bad:#ff6f6f; color-scheme:dark;
+}
+.term[data-skin="daylight"]{
+  --term:#f9fafb; --raise:#edf0f4; --sel:#dde9f4; --line:#c9d0db; --line-soft:#e1e5eb;
+  --fg:#18202c; --muted:#525d6f; --dim:#7d8798; --heat:#a65c00; --heat-ink:#ffffff; --focus:#1b6c9b;
+  --ok:#1c874a; --warn:#8a6600; --bad:#c23333; color-scheme:light;
+}
+.term[data-skin="contrast"]{
+  --term:#000000; --raise:#141414; --sel:#00293a; --line:#8a8a8a; --line-soft:#404040;
+  --fg:#ffffff; --muted:#d6d6d6; --dim:#a8a8a8; --heat:#ffd23f; --heat-ink:#000000; --focus:#5ce1ff;
+  --ok:#5dff9a; --warn:#ffe066; --bad:#ff8080; color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--desk); color:var(--fg); font-family:var(--sans)}
+.desk{max-width:1280px; margin:0 auto; padding-block:18px 28px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex; flex-direction:column; gap:14px}
+.note{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 18px; color:var(--muted); font-size:13.5px; line-height:1.5}
+.note strong{color:var(--fg); font-weight:600}
+.note p{margin:0}
+
+.term{background:var(--term); color:var(--fg); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  font-family:var(--mono); font-size:13px; line-height:1.55; display:flex; flex-direction:column; min-height:660px; overflow:hidden; position:relative}
+.term[data-density="compact"]{font-size:12.2px; line-height:1.4}
+.titlebar{display:flex; justify-content:space-between; gap:12px; padding:7px 14px; border-bottom:1px solid var(--line-soft); color:var(--dim); font-size:11.5px; white-space:nowrap; overflow:hidden}
+.titlebar span:last-child{overflow:hidden; text-overflow:ellipsis}
+.topbar{display:flex; align-items:stretch; gap:6px; border-bottom:1px solid var(--line); padding:0 8px 0 14px; min-width:0}
+.brand{display:flex; align-items:center; gap:2px; padding-right:10px; font-weight:700; letter-spacing:.01em; white-space:nowrap}
+.brand .r{color:var(--fg)} .brand .f{color:var(--heat)} .brand small{color:var(--dim); font-weight:500; margin-left:6px; font-size:11px}
+.tabs{display:flex; overflow-x:auto; scrollbar-width:thin; min-width:0; flex:1}
+.tab{appearance:none; background:none; border:0; border-bottom:2px solid transparent; color:var(--muted); font:inherit; padding:10px 10px 9px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:6px}
+.tab:hover{color:var(--fg)}
+.tab.on{color:var(--fg); border-bottom-color:var(--heat)}
+.tab .tk{color:var(--dim); font-size:11px}
+.badge{min-width:18px; padding:0 5px; border-radius:9px; background:var(--raise); border:1px solid var(--line); color:var(--fg); font-size:10.5px; line-height:16px; text-align:center}
+.badge.live{border-color:var(--heat); color:var(--heat)}
+.palbtn{appearance:none; align-self:center; background:var(--raise); color:var(--muted); border:1px solid var(--line); border-radius:6px; font:inherit; font-size:11.5px; padding:4px 8px; cursor:pointer; white-space:nowrap}
+.palbtn:hover{color:var(--fg)}
+
+main{flex:1; min-width:0; padding:18px 16px 20px}
+.keys{display:flex; flex-wrap:wrap; gap:4px 16px; padding:7px 14px; border-top:1px solid var(--line); color:var(--muted); font-size:12px}
+.keys .k{display:inline-flex; gap:6px; align-items:center; background:none; border:0; padding:2px 0; color:inherit; font:inherit; cursor:pointer}
+.keys .k:hover{color:var(--fg)}
+.keys .k.static{cursor:default}
+.status{display:flex; flex-wrap:wrap; gap:4px 18px; padding:6px 14px; border-top:1px solid var(--line-soft); color:var(--dim); font-size:11.5px; font-variant-numeric:tabular-nums}
+.status b{color:var(--muted); font-weight:500}
+.status .grow{flex:1}
+.dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--dim); margin-right:5px; vertical-align:1px}
+.dot.on{background:var(--heat); animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+kbd{font-family:var(--mono); font-size:10.5px; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; color:var(--muted); background:var(--raise); white-space:nowrap}
+button:focus-visible, [tabindex]:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{outline:2px solid var(--focus); outline-offset:1px}
+
+/* screen primitives */
+h1{font-size:17px; margin:0; font-weight:700; letter-spacing:.01em}
+h2{font-size:13px; margin:0; font-weight:700}
+.sub{margin:2px 0 0; color:var(--muted)}
+.head{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:10px 16px}
+.stack{display:flex; flex-direction:column; gap:18px; min-width:0}
+.cols{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:20px; align-items:start}
+.split{display:grid; grid-template-columns:minmax(0,1.45fr) minmax(0,1fr); gap:20px; align-items:start}
+.side{display:grid; grid-template-columns:minmax(0,15rem) minmax(0,1fr); gap:20px; align-items:start}
+@media (max-width:900px){ .cols,.split,.side{grid-template-columns:minmax(0,1fr)} }
+
+.panel{position:relative; border:1px solid var(--line); border-radius:7px; padding:18px 14px 14px; min-width:0}
+.ptitle{position:absolute; top:-.78em; left:10px; padding:0 6px; background:var(--term); color:var(--muted); font-size:11px; letter-spacing:.09em; text-transform:uppercase; white-space:nowrap}
+.ptitle b{color:var(--heat); font-weight:700}
+.muted{color:var(--muted)} .dim{color:var(--dim)} .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)} .hot{color:var(--heat)}
+.mono-num{font-variant-numeric:tabular-nums}
+.hr{border-top:1px dashed var(--line); margin:4px 0}
+
+.btn{appearance:none; font:inherit; color:var(--fg); background:var(--raise); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:8px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--heat); color:var(--heat-ink); border-color:var(--heat); font-weight:700}
+.btn.primary kbd{background:transparent; color:var(--heat-ink); border-color:currentColor; opacity:.7}
+.btn.danger{color:var(--bad); border-color:var(--bad); background:transparent}
+.btn.small{padding:3px 9px; font-size:12px}
+.btn.link{background:none; border-color:transparent; color:var(--focus); padding:2px 4px}
+.btn[disabled]{opacity:.45; cursor:not-allowed}
+.btns{display:flex; flex-wrap:wrap; gap:8px}
+
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{appearance:none; font:inherit; color:var(--fg); background:transparent; border:1px solid var(--line); border-radius:999px; padding:5px 12px; cursor:pointer; display:inline-flex; gap:8px; align-items:baseline}
+.chip small{color:var(--dim); font-size:11px}
+.chip.on{border-color:var(--heat); background:var(--sel)}
+.chip.on::before{content:"●"; color:var(--heat); font-size:9px; align-self:center}
+.chip.add{color:var(--focus); border-style:dashed}
+.pill{display:inline-block; font-size:11px; line-height:17px; padding:0 7px; border-radius:4px; border:1px solid var(--line); color:var(--muted); white-space:nowrap}
+.st-done{color:var(--ok); border-color:var(--ok)}
+.st-running{color:var(--heat); border-color:var(--heat)}
+.st-paused{color:var(--warn); border-color:var(--warn)}
+.st-cancelled{color:var(--dim)}
+.st-partial{color:var(--warn); border-color:var(--warn)}
+.tag{display:inline-block; font-size:11px; padding:0 6px; border-radius:4px; background:var(--raise); color:var(--muted); margin:1px 4px 1px 0; white-space:nowrap}
+.tag.new{color:var(--heat)} .tag.changed{color:var(--focus)} .tag.takeover,.tag.expiring{color:var(--bad)}
+.score{display:inline-block; min-width:2.6ch; text-align:right; font-weight:700; font-variant-numeric:tabular-nums}
+.s-hot{color:var(--bad)} .s-warm{color:var(--heat)} .s-mid{color:var(--focus)} .s-low{color:var(--dim)}
+
+/* forms */
+label.f{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); min-width:0}
+input[type=text], input[type=number], input[type=password], select, textarea{
+  font:inherit; color:var(--fg); background:var(--raise); border:1px solid var(--line); border-radius:6px; padding:6px 9px; min-width:0; width:100%}
+textarea{resize:vertical; line-height:1.5}
+select{cursor:pointer}
+.check{display:flex; gap:10px; align-items:flex-start; cursor:pointer}
+.check input{accent-color:var(--heat); margin-top:3px}
+.check small{display:block; color:var(--dim)}
+.check.off{opacity:.5; cursor:not-allowed}
+.formgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(13rem, 1fr)); gap:12px}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; flex-wrap:wrap}
+.seg button{appearance:none; font:inherit; background:none; color:var(--muted); border:0; border-right:1px solid var(--line); padding:5px 11px; cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--sel); color:var(--fg)}
+.seg button[disabled]{opacity:.4; cursor:not-allowed}
+.field-row{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center}
+.err{color:var(--bad); font-size:12px}
+.notice{border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; padding:8px 12px; color:var(--muted)}
+.notice.bad{border-left-color:var(--bad)}
+.notice.info{border-left-color:var(--focus)}
+
+/* new scan */
+.presets{display:grid; grid-template-columns:repeat(auto-fit, minmax(8.5rem, 1fr)); gap:10px}
+.preset{appearance:none; text-align:left; font:inherit; color:var(--fg); background:transparent; border:1px solid var(--line); border-radius:7px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:6px; min-width:0}
+.preset:hover{border-color:var(--muted)}
+.preset.on{border-color:var(--heat); background:var(--sel)}
+.preset.locked{opacity:.5; cursor:not-allowed}
+.preset .pn{font-weight:700; display:flex; justify-content:space-between; gap:8px}
+.preset .pd{color:var(--muted); font-size:12px; line-height:1.45}
+.preset .pm{color:var(--dim); font-size:11.5px}
+.steps{display:flex; flex-wrap:wrap; gap:4px 6px; color:var(--dim); font-size:12px; margin-top:12px}
+.steps span{color:var(--muted)} .steps i{font-style:normal; color:var(--dim)}
+.modlist{display:grid; grid-template-columns:repeat(auto-fit, minmax(17rem,1fr)); gap:8px 16px; margin-top:12px}
+.tsum{display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:12px; color:var(--muted); font-size:12px}
+.tsum b{color:var(--fg); font-weight:500}
+.launch{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--line); border-radius:7px; padding:12px 14px; background:var(--raise)}
+.launch p{margin:0; color:var(--muted); min-width:0}
+.launch p b{color:var(--fg)}
+.histbtn{appearance:none; width:100%; text-align:left; font:inherit; color:var(--fg); background:var(--raise); border:1px solid var(--line); border-radius:8px; padding:14px 16px; cursor:pointer; display:grid; grid-template-columns:1fr auto; gap:4px 10px}
+.histbtn:hover{border-color:var(--heat)}
+.histbtn .t{font-size:15px; font-weight:700}
+.histbtn .s{grid-column:1/-1; color:var(--muted); font-size:12px}
+.mini{display:flex; flex-direction:column}
+.mini button{appearance:none; font:inherit; color:var(--fg); background:none; border:0; border-bottom:1px solid var(--line-soft); text-align:left; padding:7px 2px; cursor:pointer; display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:baseline}
+.mini button:last-child{border-bottom:0}
+.mini button:hover{background:var(--raise)}
+.mini .m1{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.plan{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 16px; font-size:12.5px}
+.plan span:nth-child(odd){color:var(--heat)}
+.plan span:nth-child(even){color:var(--muted)}
+
+/* running */
+.runcards{display:flex; flex-direction:column; gap:8px}
+.runcard{appearance:none; font:inherit; color:var(--fg); text-align:left; background:transparent; border:1px solid var(--line); border-radius:7px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:3px}
+.runcard.on{border-color:var(--heat); background:var(--sel)}
+.runcard .rb{color:var(--focus); letter-spacing:-1px; overflow:hidden; white-space:nowrap}
+.bf{color:inherit} .be{color:var(--line)}
+.mods{display:flex; flex-direction:column}
+.mod{display:grid; grid-template-columns:minmax(0,18ch) 21ch 5ch minmax(0,13ch) minmax(0,1fr); gap:0 12px; align-items:baseline; padding:3px 0; font-variant-numeric:tabular-nums}
+.mod.head{color:var(--dim); font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding-bottom:6px}
+.mod .mn{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mod .mb{letter-spacing:-1px; white-space:nowrap; overflow:hidden; color:var(--dim)}
+.mod.go .mb{color:var(--focus)} .mod.done .mb{color:var(--ok)}
+.mod .mp{text-align:right; color:var(--muted)}
+.mod.done .mp{color:var(--ok)}
+.mod .mo{color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mod .mx{color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:760px){
+  .mod{grid-template-columns:minmax(0,1fr) auto; row-gap:1px; padding:5px 0; border-bottom:1px solid var(--line-soft)}
+  .mod .mb{grid-column:1/-1; order:3}
+  .mod .mo{grid-column:1/-1; order:4; color:var(--muted); font-size:12px}
+  .mod .mx,.mod.head{display:none}
+}
+.feed{display:flex; flex-direction:column; gap:2px; font-size:12px; max-height:15.5em; overflow:auto}
+.feed div{display:grid; grid-template-columns:8ch 19ch minmax(0,1fr); gap:12px; white-space:nowrap}
+.feed div span{overflow:hidden; text-overflow:ellipsis}
+.feed div span:last-child{overflow:hidden; text-overflow:ellipsis}
+.feed .ft{color:var(--dim)} .feed .fm{color:var(--heat)}
+@media (max-width:620px){ .feed div{grid-template-columns:minmax(0,1fr); white-space:normal; gap:0; padding:3px 0; border-bottom:1px solid var(--line-soft)} .feed .ft{display:none} }
+.runhead{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px}
+.ratectl{display:inline-flex; align-items:center; gap:6px}
+.ratectl b{min-width:9ch; text-align:center; font-weight:500}
+
+/* tables */
+.tw{overflow-x:auto; min-width:0}
+table.t{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+.t th{color:var(--dim); font-weight:500; text-align:left; font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:4px 10px 7px; border-bottom:1px solid var(--line); white-space:nowrap}
+.t td{padding:7px 10px; border-bottom:1px solid var(--line-soft); white-space:nowrap; vertical-align:baseline}
+.t tr.row{cursor:pointer}
+.t tr.row:hover td{background:var(--raise)}
+.t tr.sel td{background:var(--sel)}
+.t tr.sel td:first-child{box-shadow:inset 2px 0 0 var(--heat)}
+.t td.wrap{white-space:normal; min-width:16ch}
+.t .r{text-align:right}
+.filters{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end}
+.filters label.f{width:auto; min-width:9rem}
+.filters .grow{flex:1; min-width:12rem}
+
+/* report */
+.rtabs{display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--line)}
+.rtabs button{appearance:none; font:inherit; background:none; border:0; border-bottom:2px solid transparent; color:var(--muted); padding:7px 10px; cursor:pointer}
+.rtabs button.on{color:var(--fg); border-bottom-color:var(--focus)}
+.stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(8.5rem,1fr)); gap:10px}
+.stat{border:1px solid var(--line-soft); border-radius:7px; padding:10px 12px}
+.stat b{display:block; font-size:20px; font-weight:700; font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted); font-size:12px}
+.diff{display:flex; flex-direction:column}
+.diff div{display:grid; grid-template-columns:2ch minmax(0,24ch) minmax(0,1fr) 4ch; gap:12px; padding:6px 0; border-bottom:1px solid var(--line-soft); align-items:baseline}
+.diff .k{font-weight:700}
+.diff .k.add{color:var(--ok)} .diff .k.chg{color:var(--focus)} .diff .k.del{color:var(--bad)}
+.diff .h{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+@media (max-width:620px){ .diff div{grid-template-columns:2ch minmax(0,1fr) 4ch} .diff div .d{grid-column:2/-1; color:var(--muted); font-size:12px} }
+.prio{display:flex; flex-direction:column; gap:2px}
+.prio div{display:grid; grid-template-columns:3ch minmax(0,24ch) minmax(0,1fr); gap:12px; padding:5px 0; align-items:baseline}
+.prio .h{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+@media (max-width:620px){ .prio div{grid-template-columns:3ch minmax(0,1fr)} .prio div span:last-child{grid-column:2; color:var(--muted); font-size:12px} }
+.prose{max-width:72ch; color:var(--fg); line-height:1.65; margin:0}
+ul.plain{margin:0; padding-left:18px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
+
+/* targets */
+.tlist{display:flex; flex-direction:column; gap:8px}
+.tcard{appearance:none; font:inherit; color:var(--fg); text-align:left; background:transparent; border:1px solid var(--line); border-radius:7px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:2px}
+.tcard.on{border-color:var(--heat); background:var(--sel)}
+.tcard small{color:var(--muted)}
+.rules{display:flex; flex-direction:column}
+.rules div{display:grid; grid-template-columns:4ch minmax(0,1fr) auto; gap:10px; align-items:center; padding:4px 0; border-bottom:1px solid var(--line-soft)}
+.rules .in{color:var(--ok)} .rules .out{color:var(--bad)}
+.rules .x{appearance:none; background:none; border:0; color:var(--dim); font:inherit; cursor:pointer; padding:0 4px}
+.rules .x:hover{color:var(--bad)}
+.addrule{display:grid; grid-template-columns:6.5rem minmax(0,1fr) auto; gap:8px; margin-top:10px}
+.tester{display:flex; flex-direction:column; gap:6px}
+.tres{min-height:1.5em; font-size:12.5px}
+.kv{display:grid; grid-template-columns:minmax(0,12ch) minmax(0,1fr); gap:6px 14px; align-items:baseline}
+.kv dt{color:var(--muted)} .kv dd{margin:0; min-width:0; overflow-wrap:anywhere}
+
+/* assets */
+.qhelp{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.qhelp button{appearance:none; font:inherit; font-size:11.5px; background:var(--raise); border:1px solid var(--line-soft); color:var(--muted); border-radius:4px; padding:1px 7px; cursor:pointer}
+.qhelp button:hover{color:var(--fg)}
+.dtabs{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0}
+.dtabs button{appearance:none; font:inherit; font-size:12px; background:none; border:1px solid var(--line-soft); color:var(--muted); border-radius:5px; padding:2px 8px; cursor:pointer}
+.dtabs button.on{border-color:var(--focus); color:var(--fg)}
+pre.raw{margin:0; padding:10px 12px; border:1px solid var(--line-soft); border-radius:6px; background:var(--raise); color:var(--fg); font:inherit; font-size:12px; line-height:1.5; overflow-x:auto; white-space:pre}
+pre.raw .c{color:var(--dim)} pre.raw .h{color:var(--focus)} pre.raw .s{color:var(--ok)}
+.timeline{display:flex; flex-direction:column; gap:6px; border-left:1px solid var(--line); padding-left:12px; margin-left:4px}
+.timeline div{position:relative}
+.timeline div::before{content:""; position:absolute; left:-16.5px; top:.55em; width:8px; height:8px; border-radius:50%; background:var(--term); border:1px solid var(--muted)}
+.timeline b{font-weight:500; color:var(--muted); margin-right:8px}
+
+/* inbox */
+.inb{display:flex; flex-direction:column}
+.inb .it{display:grid; grid-template-columns:2ch 3ch minmax(0,24ch) minmax(0,1fr) auto; gap:12px; align-items:baseline; padding:9px 6px; border-bottom:1px solid var(--line-soft); cursor:pointer}
+.inb .it:hover{background:var(--raise)}
+.inb .it.sel{background:var(--sel); box-shadow:inset 2px 0 0 var(--heat)}
+.inb .it .h{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.inb .it .w{color:var(--muted)}
+.inb .it .acts{display:flex; gap:4px}
+@media (max-width:760px){ .inb .it{grid-template-columns:2ch 3ch minmax(0,1fr)} .inb .it .w{grid-column:3} .inb .it .acts{grid-column:3; flex-wrap:wrap} }
+.done-list{display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12.5px}
+
+/* tools */
+.toolgrid{display:flex; flex-direction:column; gap:2px}
+.toolgrid button{appearance:none; font:inherit; color:var(--fg); background:none; border:1px solid transparent; border-radius:6px; text-align:left; padding:7px 10px; cursor:pointer; display:flex; flex-direction:column}
+.toolgrid button small{color:var(--dim); font-size:11.5px}
+.toolgrid button:hover{background:var(--raise)}
+.toolgrid button.on{border-color:var(--heat); background:var(--sel)}
+@media (max-width:900px){ .toolgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(10rem,1fr)); gap:6px} .toolgrid button small{display:none} .toolgrid button{border-color:var(--line-soft)} }
+.srcnote{font-size:11.5px; color:var(--dim)}
+
+/* ai */
+.chat{display:flex; flex-direction:column; gap:12px; max-height:34rem; overflow:auto; padding-right:4px}
+.msg{display:grid; grid-template-columns:4ch minmax(0,1fr); gap:12px}
+.msg .who{color:var(--dim)}
+.msg.you .who{color:var(--focus)} .msg.ai .who{color:var(--heat)}
+.msg .body{min-width:0; overflow-wrap:anywhere}
+.msg .body p{margin:0 0 6px}
+.msg .tool{color:var(--dim); font-size:12px}
+.msg .tool b{color:var(--muted); font-weight:500}
+.propose{border:1px solid var(--heat); border-radius:7px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; margin-top:4px}
+.chatin{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px}
+.ctxbar{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; color:var(--muted); font-size:12px}
+
+/* settings */
+.cfgnav{display:flex; flex-direction:column; gap:2px}
+.cfgnav button{appearance:none; font:inherit; text-align:left; color:var(--muted); background:none; border:0; border-radius:5px; padding:6px 10px; cursor:pointer}
+.cfgnav button:hover{color:var(--fg); background:var(--raise)}
+.cfgnav button.on{color:var(--fg); background:var(--sel); box-shadow:inset 2px 0 0 var(--heat)}
+@media (max-width:900px){ .cfgnav{flex-direction:row; flex-wrap:wrap; gap:4px} .cfgnav button{border:1px solid var(--line-soft)} }
+.provs{display:flex; flex-direction:column}
+.provs .p{display:grid; grid-template-columns:2ch minmax(0,12ch) minmax(0,1fr) minmax(0,16ch) auto; gap:12px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line-soft)}
+.provs .p .kk{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.provs .p .u{color:var(--dim); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+@media (max-width:760px){ .provs .p{grid-template-columns:2ch minmax(0,1fr) auto} .provs .p .u, .provs .p .kk{grid-column:2/-1} }
+.roles{display:grid; grid-template-columns:minmax(0,9ch) minmax(0,1fr); gap:8px 14px; align-items:center}
+.roles small{grid-column:2; color:var(--dim); margin-top:-6px}
+
+/* overlays */
+.overlay{position:fixed; inset:0; background:color-mix(in srgb, var(--term) 55%, transparent); backdrop-filter:blur(2px); display:flex; align-items:flex-start; justify-content:center; z-index:40;
+  padding:max(9vh, calc(env(safe-area-inset-top, 0px) + 24px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px))}
+.dialog{width:min(40rem, 100%); background:var(--term); border:1px solid var(--line); border-radius:9px; box-shadow:var(--shadow); font-family:var(--mono); font-size:13px; color:var(--fg); overflow:hidden}
+.dialog .dh{display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px}
+.dialog input{border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; padding:12px 14px; font-size:14px}
+.pal{max-height:22rem; overflow:auto; padding:6px}
+.pal button{appearance:none; width:100%; font:inherit; color:var(--fg); background:none; border:0; border-radius:5px; text-align:left; padding:7px 10px; cursor:pointer; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px}
+.pal button small{color:var(--dim); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:22ch}
+.pal button.on{background:var(--sel); box-shadow:inset 2px 0 0 var(--heat)}
+.helpgrid{display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 16px; padding:14px; max-height:26rem; overflow:auto}
+.toasts{position:fixed; right:max(16px, calc(env(safe-area-inset-right, 0px) + 16px)); bottom:calc(env(safe-area-inset-bottom, 0px) + 16px); display:flex; flex-direction:column; gap:8px; z-index:50; max-width:min(26rem, calc(100% - 32px))}
+.toast{background:var(--raise); border:1px solid var(--line); border-left:3px solid var(--heat); border-radius:7px; padding:9px 12px; font-family:var(--mono); font-size:12.5px; color:var(--fg); box-shadow:var(--shadow); display:flex; gap:12px; align-items:center; justify-content:space-between}
+.empty{border:1px dashed var(--line); border-radius:7px; padding:22px; color:var(--muted); display:flex; flex-direction:column; gap:10px; align-items:flex-start}
+@media (prefers-reduced-motion: reduce){ .dot.on{animation:none} }
+</style>
+
+<div class="desk">
+  <header class="note">
+    <div><strong>ReconForge v2</strong> · dashboard prototype</div>
+    <p>Every screen and button works, but nothing is scanned. All data is sample data.</p>
+    <p>Keys: <kbd>1</kbd>–<kbd>9</kbd> tabs · <kbd>Ctrl</kbd> <kbd>K</kbd> commands · <kbd>?</kbd> help</p>
+  </header>
+
+  <div class="term" id="term">
+    <div class="titlebar"><span>reconforge — ~/hunting</span><span>140 × 40 · UI prototype</span></div>
+    <nav class="topbar" aria-label="Sections">
+      <div class="brand"><span class="r">recon</span><span class="f">forge</span><small>v2</small></div>
+      <div class="tabs" id="tabs"></div>
+      <button class="palbtn" data-act="palette" title="Command palette">Ctrl K</button>
+    </nav>
+    <main id="main"></main>
+    <div class="keys" id="keys"></div>
+    <footer class="status" id="status"></footer>
+    <div id="overlay" hidden></div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("rf2:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("rf2:" + k, JSON.stringify(v)); } catch {} }
+};
+const main = $("#main"), term = $("#term");
+
+/* ───────────────────────── sample data ───────────────────────── */
+const MODULES = {
+  "passive.subdomains": {d:"Subdomains from certificate logs and 9 other sources", u:"names", n:312, lvl:0},
+  "passive.urls":       {d:"Old URLs and parameters from web archives", u:"urls", n:4820, lvl:0},
+  "passive.certs":      {d:"Certificates issued for the target", u:"certs", n:96, lvl:0},
+  "dns.resolve":        {d:"Resolve names and drop wildcard answers", u:"live", n:204, lvl:1},
+  "dns.brute":          {d:"Wordlist brute force, wildcard-safe", u:"names", n:38, lvl:3},
+  "dns.permute":        {d:"Name permutations like dev-, -staging, -v2", u:"names", n:17, lvl:2},
+  "scope.gate":         {d:"Drop anything out of scope. Always on.", u:"in scope", n:198, lvl:0, locked:true},
+  "port.scan":          {d:"Open TCP ports", u:"services", n:61, lvl:2},
+  "http.probe":         {d:"Web servers on any open port: status, title, redirects", u:"apps", n:47, lvl:1},
+  "tls.inspect":        {d:"Certificates, expiry, extra names in SANs", u:"new names", n:3, lvl:1},
+  "tech.detect":        {d:"Frameworks, servers, CMS, WAF and CDN", u:"techs", n:31, lvl:1},
+  "takeover.check":     {d:"Dangling CNAMEs pointing at unclaimed services", u:"candidates", n:1, lvl:1},
+  "js.extract":         {d:"Endpoints and secrets inside JavaScript files", u:"endpoints", n:212, lvl:2},
+  "screenshot":         {d:"Page screenshots (needs Chrome installed)", u:"shots", n:47, lvl:2},
+  "score":              {d:"Rank every result by how interesting it is", u:"above 70", n:6, lvl:0},
+  "ai.triage":          {d:"AI explains and ranks the top results", u:"explained", n:20, lvl:0},
+};
+const MOD_ORDER = Object.keys(MODULES);
+const LEVELS = ["passive", "light", "normal", "deep"];
+const PRESETS = [
+  {id:"passive", name:"Passive", d:"Public sources only. Sends nothing to the target.", mods:["passive.subdomains","passive.urls","passive.certs","score"], est:"~40 s"},
+  {id:"quick", name:"Quick", d:"Live hosts and web apps on ports 80 and 443.", mods:["passive.subdomains","dns.resolve","scope.gate","http.probe","tech.detect","score"], est:"~2 min"},
+  {id:"standard", name:"Standard", d:"Top 100 ports, web apps, TLS, takeover checks and AI triage.", mods:["passive.subdomains","dns.resolve","scope.gate","port.scan","http.probe","tls.inspect","tech.detect","takeover.check","score","ai.triage"], est:"~6 min"},
+  {id:"deep", name:"Deep", d:"Adds brute force, permutations, top 1000 ports, JS analysis and screenshots.", mods:["passive.subdomains","passive.urls","dns.resolve","dns.brute","dns.permute","scope.gate","port.scan","http.probe","tls.inspect","tech.detect","takeover.check","js.extract","screenshot","score","ai.triage"], est:"~40 min", lvl:3},
+  {id:"custom", name:"Custom", d:"Pick the steps yourself.", mods:null, est:"depends"},
+];
+const presetOf = id => PRESETS.find(p => p.id === id);
+
+const TARGETS = {
+  acme:    {kind:"Bug bounty", where:"HackerOne", scope:[["in","*.acme.example"],["in","api.acme-pay.example"],["in","203.0.113.0/24"],["out","blog.acme.example"],["out","*.cdn.acme.example"]], level:2, rate:10, header:"X-Bug-Bounty: yourhandle", ua:"ReconForge (+yourhandle)", ai:"any", hosts:198, services:61, apps:47, f:1},
+  globex:  {kind:"Pentest", where:"Client · Nov 20 – Dec 4", scope:[["in","globex.example"],["in","*.globex.example"],["in","198.51.100.0/25"],["out","mail.globex.example"]], level:3, rate:50, header:"", ua:"ReconForge", ai:"off", hosts:57, services:19, apps:14, f:.29},
+  initech: {kind:"Own infrastructure", where:"Internal", scope:[["in","*.initech.example"],["in","192.0.2.0/24"]], level:3, rate:200, header:"", ua:"ReconForge", ai:"local", hosts:812, services:240, apps:230, f:4.1},
+};
+const ORDER = ["acme", "globex", "initech"];
+const AI_LABEL = {off:"off", local:"local models only", any:"any configured model"};
+
+const ASSETS = {
+  acme: [
+    {score:92, host:"jenkins.acme.example", ip:"203.0.113.17", port:443, code:200, title:"Dashboard [Jenkins]", tech:["Jenkins 2.462","Jetty","Java"], flags:["new"], seen:"Nov 24 · scan #141", server:"Jetty(10.0.20)", tls:{issuer:"Let's Encrypt", days:88, sans:4}, why:["new this week","CI server","login page","no WAF in front"]},
+    {score:87, host:"staging-api.acme.example", ip:"203.0.113.40", port:8443, code:200, title:"acme-api (staging)", tech:["Go net/http"], flags:["new"], seen:"Today · scan #142", server:"—", tls:{issuer:"Let's Encrypt", days:61, sans:1}, why:["/debug/vars answers 200","prod answers 404","non-standard port"]},
+    {score:74, host:"grafana.acme.example", ip:"203.0.113.22", port:443, code:302, title:"Grafana", tech:["Grafana 11.2"], flags:["changed"], seen:"Oct 02 · scan #118", server:"—", tls:{issuer:"Let's Encrypt", days:45, sans:1}, why:["version changed 11.0 → 11.2","login page"]},
+    {score:61, host:"ci-internal.acme.example", ip:"203.0.113.18", port:8080, code:403, title:"403 Forbidden", tech:["nginx 1.18.0"], flags:["new"], seen:"Today · scan #142", server:"nginx/1.18.0", tls:null, why:["found in a certificate SAN","next to jenkins","old nginx"]},
+    {score:55, host:"uat.acme.example", ip:"203.0.113.55", port:443, code:401, title:"401 Authorization Required", tech:["Apache 2.4.57","Basic auth"], flags:["new"], seen:"Today · scan #142", server:"Apache/2.4.57", tls:{issuer:"Sectigo", days:140, sans:2}, why:['Basic auth realm "UAT"',"outside the CDN"]},
+    {score:48, host:"api-v1.acme.example", ip:"203.0.113.30", port:443, code:200, title:"Welcome to nginx!", tech:["nginx"], flags:["cluster ×14"], seen:"Aug 11 · scan #97", server:"nginx", tls:{issuer:"Let's Encrypt", days:70, sans:14}, why:["default page","same as 13 other hosts"]},
+    {score:41, host:"docs.acme.example", ip:"CNAME · GitHub Pages", port:443, code:404, title:"There isn't a GitHub Pages site here.", tech:["GitHub Pages"], flags:["takeover"], seen:"Jun 03 · scan #64", server:"GitHub.com", tls:null, why:["CNAME points at an unclaimed GitHub Pages site","possible takeover"]},
+    {score:38, host:"pay.acme.example", ip:"203.0.113.60", port:443, code:200, title:"Acme Pay", tech:["React","Cloudflare"], flags:["expiring"], seen:"Mar 12 · scan #12", server:"cloudflare", tls:{issuer:"DigiCert", days:3, sans:2}, why:["certificate expires in 3 days"]},
+    {score:30, host:"api.acme.example", ip:"203.0.113.31", port:443, code:200, title:"acme-api", tech:["nginx","Go net/http"], flags:[], seen:"Mar 12 · scan #12", server:"nginx", tls:{issuer:"Let's Encrypt", days:52, sans:2}, why:["production API"]},
+    {score:22, host:"www.acme.example", ip:"203.0.113.10", port:443, code:200, title:"Acme · Home", tech:["Next.js","Cloudflare"], flags:[], seen:"Mar 12 · scan #12", server:"cloudflare", tls:{issuer:"DigiCert", days:201, sans:3}, why:["marketing site behind the CDN"]},
+    {score:12, host:"cdn2.acme.example", ip:"203.0.113.30", port:443, code:200, title:"Welcome to nginx!", tech:["nginx"], flags:["cluster ×14"], seen:"Aug 11 · scan #97", server:"nginx", tls:{issuer:"Let's Encrypt", days:70, sans:14}, why:["default page","same as 13 other hosts"]},
+    {score:10, host:"status.acme.example", ip:"203.0.113.70", port:443, code:200, title:"Acme Status", tech:["Statuspage"], flags:[], seen:"Mar 12 · scan #12", server:"—", tls:{issuer:"Let's Encrypt", days:33, sans:1}, why:["third-party status page"]},
+  ],
+  globex: [
+    {score:83, host:"vpn.globex.example", ip:"198.51.100.12", port:443, code:200, title:"SSL VPN portal", tech:["VPN portal"], flags:["new"], seen:"Nov 23 · scan #139", server:"—", tls:{issuer:"Sectigo", days:12, sans:1}, why:["remote-access portal","certificate expires in 12 days"]},
+    {score:70, host:"files.globex.example", ip:"198.51.100.20", port:21, code:"—", title:"220 ProFTPD Server ready", tech:["ProFTPD 1.3.6"], flags:["new"], seen:"Nov 23 · scan #139", server:"ProFTPD", tls:null, why:["FTP open to the internet","old version string"]},
+    {score:52, host:"intranet.globex.example", ip:"198.51.100.33", port:443, code:302, title:"Sign in", tech:["Microsoft IIS 10.0","ASP.NET"], flags:[], seen:"Nov 23 · scan #139", server:"Microsoft-IIS/10.0", tls:{issuer:"DigiCert", days:180, sans:1}, why:["internal app on the internet"]},
+    {score:35, host:"www.globex.example", ip:"198.51.100.40", port:443, code:200, title:"Globex Corporation", tech:["WordPress 6.6","PHP 8.1"], flags:[], seen:"Nov 23 · scan #139", server:"Apache", tls:{issuer:"Let's Encrypt", days:77, sans:2}, why:["WordPress"]},
+    {score:20, host:"mx1.globex.example", ip:"198.51.100.25", port:25, code:"—", title:"220 mx1 ESMTP Postfix", tech:["Postfix"], flags:[], seen:"Nov 23 · scan #139", server:"Postfix", tls:null, why:["mail server"]},
+    {score:15, host:"globex.example", ip:"198.51.100.40", port:443, code:301, title:"Moved Permanently", tech:["Apache"], flags:[], seen:"Nov 23 · scan #139", server:"Apache", tls:{issuer:"Let's Encrypt", days:77, sans:2}, why:["redirects to www"]},
+  ],
+  initech: [
+    {score:88, host:"kibana.initech.example", ip:"192.0.2.44", port:5601, code:200, title:"Kibana", tech:["Kibana 8.14"], flags:["new"], seen:"Nov 23 · scan #140", server:"—", tls:null, why:["no login page","new this week"]},
+    {score:79, host:"gitlab.initech.example", ip:"192.0.2.30", port:443, code:302, title:"Sign in · GitLab", tech:["GitLab 17.1"], flags:[], seen:"Sep 30 · scan #112", server:"nginx", tls:{issuer:"Let's Encrypt", days:40, sans:2}, why:["self-hosted Git","version visible"]},
+    {score:66, host:"redis-cache.initech.example", ip:"192.0.2.61", port:6379, code:"—", title:"Redis 7.2", tech:["Redis 7.2"], flags:["new"], seen:"Nov 23 · scan #140", server:"—", tls:null, why:["answered without a password"]},
+    {score:50, host:"build-07.initech.example", ip:"192.0.2.77", port:8080, code:200, title:"Jenkins", tech:["Jenkins 2.440"], flags:["changed"], seen:"Jul 19 · scan #88", server:"Jetty", tls:null, why:["CI server","older than the other Jenkins"]},
+    {score:31, host:"wiki.initech.example", ip:"192.0.2.12", port:443, code:200, title:"Initech Wiki", tech:["Confluence"], flags:[], seen:"Jul 19 · scan #88", server:"—", tls:{issuer:"Let's Encrypt", days:22, sans:1}, why:["wiki"]},
+    {score:18, host:"www.initech.example", ip:"192.0.2.10", port:443, code:200, title:"Initech", tech:["Next.js"], flags:[], seen:"Jul 19 · scan #88", server:"—", tls:{issuer:"Let's Encrypt", days:65, sans:2}, why:["company site"]},
+  ],
+};
+
+const HISTORY = [
+  {id:142, target:"acme", preset:"standard", started:"Today 10:58", took:"6m 12s", status:"done", hosts:198, apps:47, services:61, add:4, chg:1, del:2, since:138},
+  {id:141, target:"acme", preset:"quick", started:"Nov 24 09:12", took:"1m 40s", status:"done", hosts:195, apps:44, services:44, add:2, chg:0, del:0, since:135},
+  {id:140, target:"initech", preset:"deep", started:"Nov 23 22:05", took:"41m 03s", status:"done", hosts:812, apps:230, services:240, add:21, chg:6, del:0, since:133},
+  {id:139, target:"globex", preset:"passive", started:"Nov 23 18:30", took:"38s", status:"done", hosts:57, apps:0, services:0, add:57, chg:0, del:0, since:null},
+  {id:138, target:"acme", preset:"standard", started:"Nov 19 11:02", took:"6m 45s", status:"done", hosts:194, apps:43, services:58, add:9, chg:0, del:1, since:131},
+  {id:137, target:"initech", preset:"standard", started:"Nov 18 20:40", took:"3m 02s", status:"cancelled", hosts:420, apps:96, services:110, add:0, chg:0, del:0, since:null, note:"Cancelled by you at 38%. Results up to that point were kept."},
+  {id:136, target:"acme", preset:"standard", started:"Nov 17 14:15", took:"7m 20s", status:"partial", hosts:190, apps:42, services:57, add:1, chg:0, del:0, since:131, note:"SecurityTrails key missing, so that source was skipped."},
+];
+const DIFF142 = [
+  {k:"+", host:"jenkins.acme.example", d:"Jenkins on 443, login page, no WAF in front", s:92},
+  {k:"+", host:"staging-api.acme.example", d:"Go service on 8443, /debug/vars open", s:87},
+  {k:"+", host:"ci-internal.acme.example", d:"nginx 1.18 on 8080, found in a certificate SAN", s:61},
+  {k:"+", host:"uat.acme.example", d:'Basic auth realm "UAT", outside the CDN', s:55},
+  {k:"~", host:"grafana.acme.example", d:"Grafana 11.0 → 11.2", s:74},
+  {k:"-", host:"old.acme.example", d:"NXDOMAIN since Nov 24"},
+  {k:"-", host:"legacy-sso.acme.example", d:"no longer answers on 443"},
+];
+
+let nextId = 143;
+const RUNNING = [];
+
+const S = {
+  view:"new-scan", reportId:142, reportTab:"summary",
+  target:"acme", preset:"standard", ports:"top100", customPorts:"80,443,8000-8999", rate:10, aiTriage:true, shots:false, recheck:false,
+  custom:new Set(["passive.subdomains","dns.resolve","scope.gate","http.probe","score"]),
+  showDry:false, nt:{open:false, name:"", kind:"Bug bounty", scope:"", err:""},
+  runSel:143, cancelAsk:null,
+  hf:{target:"all", status:"all", q:""}, histSel:0,
+  tgtSel:"acme", ruleKind:"in", ruleText:"", scopeTest:"admin.acme.example", importOpen:false,
+  aTarget:"acme", aQuery:"", aSel:"jenkins.acme.example", aTab:"response", tags:{}, notes:{}, scanNotes:{},
+  inbox:[
+    {host:"jenkins.acme.example", s:92, w:"Jenkins login, no WAF, certificate issued 2 days ago"},
+    {host:"staging-api.acme.example", s:87, w:"/debug/vars answers 200 here, 404 on prod api.acme.example"},
+    {host:"grafana.acme.example", s:74, w:"Grafana login, version moved 11.0 → 11.2"},
+    {host:"uat.acme.example", s:55, w:'Basic auth realm "UAT" on a new IP outside the CDN'},
+    {host:"docs.acme.example", s:41, w:'CNAME to GitHub Pages: "There isn\'t a GitHub Pages site here."'},
+    {host:"cdn2.acme.example", s:12, w:"Same page as 13 other hosts (cluster ×14), collapsed"},
+  ].map(x => ({...x, done:null})),
+  inSel:0,
+  tool:"http", toolOut:null, toolIn:{},
+  chatTarget:"acme", chat:null, chatBusy:false,
+  cfg:"ai", addProv:{open:false, preset:"anthropic", name:"", url:"https://api.anthropic.com", key:"", err:""},
+  providers:[
+    {name:"claude", preset:"anthropic", url:"https://api.anthropic.com", key:"system keychain", status:"ok", ms:420},
+    {name:"local", preset:"ollama", url:"http://localhost:11434/v1", key:"none needed", status:"ok", ms:90},
+    {name:"openrouter", preset:"openrouter", url:"https://openrouter.ai/api/v1", key:"env OPENROUTER_API_KEY", status:"ok", ms:610},
+    {name:"work-vllm", preset:"custom", url:"https://llm.internal.example/v1", key:"system keychain", status:"unreachable", ms:null},
+  ],
+  roles:{triage:"local/llama3.1:8b", analyst:"claude/claude-opus-5-5", chat:"claude/claude-sonnet-5-5", vision:"claude/claude-sonnet-5-5"},
+  keysSet:{shodan:true, censys:false, securitytrails:false, virustotal:true, github:true, chaos:false}, keyEdit:null,
+  proxy:{on:false, addr:"127.0.0.1:8080"},
+  privacy:{budget:20, perScan:1, redactCookies:true, redactSecrets:true, maskHosts:false, preview:true},
+  speed:{global:150, perHost:10, conc:200, timeout:8, retries:2, backoff:true},
+  skin:store.get("skin", "system"), density:store.get("density", "comfortable"),
+  aiSpend:0.42,
+};
+const MODELS = ["local/llama3.1:8b","local/qwen2.5:14b","claude/claude-haiku-5-5","claude/claude-sonnet-5-5","claude/claude-opus-5-5","openrouter/deepseek/deepseek-chat"];
+const PROVIDER_PRESETS = [
+  {id:"anthropic", label:"Anthropic (Claude)", url:"https://api.anthropic.com", proto:"Anthropic API"},
+  {id:"openai", label:"OpenAI", url:"https://api.openai.com/v1", proto:"OpenAI API"},
+  {id:"gemini", label:"Google Gemini", url:"https://generativelanguage.googleapis.com/v1beta/openai/", proto:"OpenAI-compatible"},
+  {id:"openrouter", label:"OpenRouter", url:"https://openrouter.ai/api/v1", proto:"OpenAI-compatible"},
+  {id:"groq", label:"Groq", url:"https://api.groq.com/openai/v1", proto:"OpenAI-compatible"},
+  {id:"together", label:"Together AI", url:"https://api.together.xyz/v1", proto:"OpenAI-compatible"},
+  {id:"deepseek", label:"DeepSeek", url:"https://api.deepseek.com/v1", proto:"OpenAI-compatible"},
+  {id:"mistral", label:"Mistral", url:"https://api.mistral.ai/v1", proto:"OpenAI-compatible"},
+  {id:"xai", label:"xAI", url:"https://api.x.ai/v1", proto:"OpenAI-compatible"},
+  {id:"fireworks", label:"Fireworks", url:"https://api.fireworks.ai/inference/v1", proto:"OpenAI-compatible"},
+  {id:"ollama", label:"Ollama (local)", url:"http://localhost:11434/v1", proto:"OpenAI-compatible", local:true},
+  {id:"lmstudio", label:"LM Studio (local)", url:"http://localhost:1234/v1", proto:"OpenAI-compatible", local:true},
+  {id:"vllm", label:"vLLM (self-hosted)", url:"http://localhost:8000/v1", proto:"OpenAI-compatible", local:true},
+  {id:"custom", label:"Custom OpenAI-compatible URL", url:"", proto:"OpenAI-compatible"},
+];
+const DATA_KEYS = [
+  ["shodan","Shodan","Open ports and banners seen from the internet"],
+  ["censys","Censys","Certificates and hosts"],
+  ["securitytrails","SecurityTrails","Historical DNS and subdomains"],
+  ["virustotal","VirusTotal","Subdomains from passive DNS"],
+  ["github","GitHub","Subdomains mentioned in public code"],
+  ["chaos","Chaos","ProjectDiscovery's subdomain dataset"],
+];
+
+/* ───────────────────────── helpers ───────────────────────── */
+const bar = (p, w = 20) => { const f = Math.max(0, Math.min(w, Math.round(p / 100 * w))); return `<span class="bf">${"━".repeat(f)}</span><span class="be">${"━".repeat(w - f)}</span>`; };
+const scoreCls = s => s >= 80 ? "s-hot" : s >= 60 ? "s-warm" : s >= 40 ? "s-mid" : "s-low";
+const score = s => `<span class="score ${scoreCls(s)}">${s}</span>`;
+const pill = st => `<span class="pill st-${st}">${st}</span>`;
+const kbd = k => `<kbd>${esc(k)}</kbd>`;
+const fmtDur = ms => { const s = Math.max(0, Math.round(ms / 1000)); const m = Math.floor(s / 60); return m ? `${m}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`; };
+const clock = () => new Date().toTimeString().slice(0, 8);
+const hhmm = () => new Date().toTimeString().slice(0, 5);
+const tagsFor = flags => flags.map(f => `<span class="tag ${f.split(" ")[0]}">${esc(f)}</span>`).join("");
+const findScan = id => HISTORY.find(s => s.id === id);
+const domainOf = t => { const r = (TARGETS[t]?.scope || []).find(x => x[0] === "in" && !/^\d/.test(x[1])); return r ? r[1].replace(/^\*\./, "") : t + ".example"; };
+function hashNum(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+function assetsFor(t) {
+  if (ASSETS[t]) return ASSETS[t];
+  const d = domainOf(t);
+  const rows = [
+    ["admin", 81, 200, "Admin login", ["Laravel","PHP 8.2"], ["new"]], ["dev", 69, 200, "Dev build", ["Vite","React"], ["new"]],
+    ["api", 44, 200, "API", ["nginx"], []], ["mail", 20, "—", "220 ESMTP", ["Postfix"], []], ["www", 15, 200, "Home", ["WordPress"], []],
+  ];
+  ASSETS[t] = rows.map(([sub, s, code, title, tech, flags], i) => ({score:s, host:`${sub}.${d}`, ip:`203.0.113.${100 + i}`, port: code === "—" ? 25 : 443, code, title, tech, flags, seen:"Today", server:"—", tls: code === "—" ? null : {issuer:"Let's Encrypt", days:30 + i * 17, sans:1}, why:["sample result for a new target"]}));
+  return ASSETS[t];
+}
+function diffFor(scan) {
+  if (scan.id === 142) return DIFF142;
+  if (scan.since == null) return [];
+  const a = assetsFor(scan.target);
+  const out = a.slice(0, Math.min(scan.add, a.length)).map(x => ({k:"+", host:x.host, d:`${x.title} on ${x.port}`, s:x.score}));
+  if (scan.chg) out.push({k:"~", host:a[a.length - 1].host, d:"title changed", s:a[a.length - 1].score});
+  if (scan.del) out.push({k:"-", host:"old." + domainOf(scan.target), d:"no longer resolves"});
+  return out;
+}
+
+/* scope matching (real, runs in the browser) */
+function normHost(v) {
+  let s = String(v || "").trim().toLowerCase();
+  s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  s = s.split(/[/?#]/)[0];
+  if (/^\[/.test(s)) return s.replace(/^\[|\].*$/g, "");
+  s = s.replace(/:\d+$/, "").replace(/\.$/, "");
+  return s;
+}
+const ip4 = s => { const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s); if (!m) return null; const p = m.slice(1).map(Number); if (p.some(x => x > 255)) return null; return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3]; };
+function ruleMatches(host, rule) {
+  const r = String(rule).trim().toLowerCase();
+  const cidr = /^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/.exec(r);
+  if (cidr) { const ip = ip4(host), net = ip4(cidr[1]), bits = +cidr[2]; if (ip == null || net == null || bits > 32) return false; const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0; return ((ip & mask) >>> 0) === ((net & mask) >>> 0); }
+  const rh = normHost(r);
+  if (rh.startsWith("*.")) return host.endsWith("." + rh.slice(2));
+  return host === rh;
+}
+function scopeCheck(input, rules) {
+  const host = normHost(input);
+  if (!host) return {state:"empty", why:"Type a host, IP or URL."};
+  for (const [k, r] of rules) if (k === "out" && ruleMatches(host, r)) return {state:"out", host, why:`excluded by ${r}`};
+  for (const [k, r] of rules) if (k === "in" && ruleMatches(host, r)) return {state:"in", host, why:`matched ${r}`};
+  const apex = rules.find(([k, r]) => k === "in" && r.startsWith("*.") && r.slice(2) === host);
+  return {state:"out", host, why: apex ? `no rule matched (${apex[1]} covers subdomains, not the bare domain)` : "no scope rule matched"};
+}
+
+/* new-scan derived state */
+function currentMods() {
+  let mods = S.preset === "custom" ? MOD_ORDER.filter(m => S.custom.has(m) || m === "scope.gate") : [...presetOf(S.preset).mods];
+  const t = TARGETS[S.target];
+  if (S.preset !== "custom") {
+    if (!S.aiTriage || t.ai === "off") mods = mods.filter(m => m !== "ai.triage");
+    if (S.shots && !mods.includes("screenshot") && mods.includes("http.probe")) mods.splice(mods.indexOf("score"), 0, "screenshot");
+  } else if (t.ai === "off") mods = mods.filter(m => m !== "ai.triage");
+  return mods;
+}
+function requiredLevel() {
+  let l = Math.max(...currentMods().map(m => MODULES[m].lvl));
+  if (S.ports === "top1000" && currentMods().includes("port.scan")) l = Math.max(l, 3);
+  if (S.preset === "deep") l = 3;
+  return l;
+}
+function effRate() { return Math.min(S.rate || TARGETS[S.target].rate, TARGETS[S.target].rate); }
+
+/* ───────────────────────── views ───────────────────────── */
+const VIEWS = {};
+
+VIEWS["new-scan"] = () => {
+  const t = TARGETS[S.target], mods = currentMods(), need = requiredLevel(), blocked = need > t.level;
+  const p = presetOf(S.preset);
+  const nIn = t.scope.filter(r => r[0] === "in").length, nOut = t.scope.length - nIn;
+  const recent = HISTORY.slice(0, 4);
+  const targetsN = new Set(HISTORY.map(h => h.target)).size;
+  return `
+  <div class="cols">
+    <div class="stack">
+      <div class="head"><div><h1>New scan</h1><p class="sub">Pick a target and how deep to go. Scope rules are checked before anything is sent.</p></div></div>
+
+      <section class="panel"><span class="ptitle"><b>1</b> · Target</span>
+        <div class="chips">
+          ${ORDER.map(id => `<button class="chip ${S.target === id ? "on" : ""}" data-act="pick-target" data-id="${id}">${esc(id)} <small>${esc(TARGETS[id].kind.toLowerCase())}</small></button>`).join("")}
+          <button class="chip add" data-act="nt-toggle">${S.nt.open ? "× Close" : "+ New target"}</button>
+        </div>
+        ${S.nt.open ? `
+        <form class="formgrid" id="nt-form" style="margin-top:14px">
+          <label class="f">Name<input type="text" id="nt-name" data-bind="nt.name" value="${esc(S.nt.name)}" placeholder="example-corp" autocomplete="off"></label>
+          <label class="f">Type<select id="nt-kind" data-bind="nt.kind">${["Bug bounty","Pentest","Own infrastructure"].map(k => `<option ${S.nt.kind === k ? "selected" : ""}>${k}</option>`).join("")}</select></label>
+          <label class="f">First scope rule<input type="text" id="nt-scope" data-bind="nt.scope" value="${esc(S.nt.scope)}" placeholder="*.example.com or 10.0.0.0/24" autocomplete="off"></label>
+          <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn primary" type="submit">Create target</button></div>
+          ${S.nt.err ? `<p class="err" style="margin:0">${esc(S.nt.err)}</p>` : ""}
+        </form>` : ""}
+        <div class="tsum">
+          <span><b>${nIn}</b> in scope · <b>${nOut}</b> excluded</span>
+          <span>max intensity <b>${LEVELS[t.level]}</b></span>
+          <span>limit <b>${t.rate} req/s</b></span>
+          <span>AI <b>${AI_LABEL[t.ai]}</b></span>
+          <button class="btn link small" data-act="go-target" data-id="${S.target}">Edit target</button>
+        </div>
+      </section>
+
+      <section class="panel"><span class="ptitle"><b>2</b> · Pipeline</span>
+        <div class="presets">
+          ${PRESETS.filter(pr => pr.id !== "custom").map(pr => {
+            const lvl = pr.id === "deep" ? 3 : pr.mods ? Math.max(...pr.mods.map(m => MODULES[m].lvl)) : null;
+            const locked = lvl != null && lvl > t.level;
+            return `<button class="preset ${S.preset === pr.id ? "on" : ""} ${locked ? "locked" : ""}" data-act="preset" data-id="${pr.id}" ${locked ? `title="${esc(S.target)} allows up to ${LEVELS[t.level]}"` : ""}>
+              <span class="pn">${pr.name}<span class="dim">${lvl == null ? "" : LEVELS[lvl]}</span></span>
+              <span class="pd">${pr.d}</span>
+              <span class="pm">${pr.mods ? pr.mods.length + " steps · " + pr.est : "choose steps"}${locked ? " · blocked by target rules" : ""}</span>
+            </button>`;
+          }).join("")}
+        </div>
+        <div class="chips" style="margin-top:10px"><button class="chip ${S.preset === "custom" ? "on" : ""}" data-act="preset" data-id="custom">Custom <small>pick the steps yourself</small></button></div>
+        ${S.preset === "custom" ? `
+          <div class="modlist">
+            ${MOD_ORDER.map(m => { const M = MODULES[m]; const on = S.custom.has(m) || M.locked; const off = (m === "ai.triage" && t.ai === "off"); return `
+            <label class="check ${M.locked || off ? "off" : ""}"><input type="checkbox" data-act="mod" data-id="${m}" ${on && !off ? "checked" : ""} ${M.locked || off ? "disabled" : ""}><span>${m}<small>${esc(M.d)}${off ? " · AI is off for this target" : ""}</small></span></label>`; }).join("")}
+          </div>` : `
+          <div class="steps">${mods.map((m, i) => `${i ? "<i>→</i>" : ""}<span>${m}</span>`).join(" ")}</div>`}
+      </section>
+
+      <section class="panel"><span class="ptitle"><b>3</b> · Options</span>
+        <div class="stack" style="gap:14px">
+          <div class="field-row"><span class="muted" style="min-width:12ch">Ports</span>
+            <div class="seg">
+              <button class="${S.ports === "top100" ? "on" : ""}" data-act="ports" data-v="top100">Top 100</button>
+              <button class="${S.ports === "top1000" ? "on" : ""}" data-act="ports" data-v="top1000" ${t.level < 3 ? `disabled title="Needs deep intensity"` : ""}>Top 1000</button>
+              <button class="${S.ports === "custom" ? "on" : ""}" data-act="ports" data-v="custom">Custom</button>
+            </div>
+            ${S.ports === "custom" ? `<input type="text" id="custom-ports" data-bind="customPorts" value="${esc(S.customPorts)}" style="max-width:16rem" aria-label="Custom ports">` : ""}
+            ${t.level < 3 ? `<span class="dim" style="font-size:12px">Top 1000 needs deep intensity</span>` : ""}
+          </div>
+          <div class="field-row"><span class="muted" style="min-width:12ch">Speed</span>
+            <input type="number" id="rate" min="1" max="${t.rate}" value="${effRate()}" data-bind="rate" data-num style="max-width:7rem" aria-label="Requests per second">
+            <span class="dim" style="font-size:12px">requests per second · ${esc(S.target)} allows up to ${t.rate}</span>
+          </div>
+          <div class="formgrid">
+            <label class="check ${t.ai === "off" || S.preset === "custom" ? "off" : ""}"><input type="checkbox" data-act="opt" data-id="aiTriage" ${S.aiTriage && t.ai !== "off" ? "checked" : ""} ${t.ai === "off" || S.preset === "custom" ? "disabled" : ""}><span>AI triage<small>${t.ai === "off" ? "AI is off for " + esc(S.target) : "Explains and ranks the top results"}</small></span></label>
+            <label class="check ${S.preset === "custom" ? "off" : ""}"><input type="checkbox" data-act="opt" data-id="shots" ${S.shots ? "checked" : ""} ${S.preset === "custom" ? "disabled" : ""}><span>Screenshots<small>Needs Chrome installed</small></span></label>
+            <label class="check"><input type="checkbox" data-act="opt" data-id="recheck" ${S.recheck ? "checked" : ""}><span>Recheck everything<small>Don't skip hosts checked in the last 24 hours</small></span></label>
+          </div>
+        </div>
+      </section>
+
+      ${S.showDry ? dryRun(mods) : ""}
+
+      ${blocked ? `<div class="notice bad">${esc(S.target)} allows up to <b>${LEVELS[t.level]}</b> intensity, and this scan needs <b>${LEVELS[need]}</b>. Pick a lighter pipeline or change the target's rules.</div>` : ""}
+      <div class="launch">
+        <p><b>${p.name}</b> on <b>${esc(S.target)}</b> · ${mods.length} steps · ${p.mods ? p.est : "custom"} · max ${effRate()} req/s · scope strict</p>
+        <div class="btns">
+          <button class="btn" data-act="dry">${S.showDry ? "Hide plan" : "Dry run"} ${kbd("D")}</button>
+          <button class="btn primary" data-act="start" ${blocked ? "disabled" : ""}>Start scan ${kbd("↵")}</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="stack">
+      <button class="histbtn" data-act="go" data-v="history">
+        <span class="t">History</span>${kbd("H")}
+        <span class="s">All ${HISTORY.length} scans across ${targetsN} targets, with reports and what changed</span>
+      </button>
+      <section class="panel"><span class="ptitle">Recent scans</span>
+        <div class="mini">
+          ${recent.map(s => `<button data-act="report" data-id="${s.id}"><span class="dim">#${s.id}</span><span class="m1">${esc(s.target)} · ${s.preset}</span><span class="muted">${changesTxt(s)}</span></button>`).join("")}
+        </div>
+      </section>
+      <section class="panel"><span class="ptitle">Running now</span>
+        ${RUNNING.length ? `<div class="mini">${RUNNING.map(r => `<button data-act="runsel" data-id="${r.id}"><span class="dim">#${r.id}</span><span class="m1">${esc(r.target)} · ${r.preset}</span><span class="hot" data-live="pct-${r.id}">${overall(r)}%</span></button>`).join("")}</div>`
+          : `<p class="muted" style="margin:0">Nothing running. Scans you start appear here.</p>`}
+      </section>
+    </aside>
+  </div>`;
+};
+function changesTxt(s) { if (s.since == null && s.status === "done") return "first scan"; const parts = []; if (s.add) parts.push("+" + s.add); if (s.chg) parts.push("~" + s.chg); if (s.del) parts.push("-" + s.del); return parts.join(" ") || "no changes"; }
+function dryRun(mods) {
+  const t = TARGETS[S.target], f = t.f || .2;
+  const lines = mods.map(m => {
+    const est = {
+      "passive.subdomains":"9 sources, nothing sent to the target", "passive.urls":"web archives, nothing sent to the target", "passive.certs":"certificate logs",
+      "dns.resolve":`about ${Math.round(320 * f)} names through 4 resolvers`, "dns.brute":"5,000 words, wildcard-checked first", "dns.permute":`about ${Math.round(900 * f)} candidates`,
+      "scope.gate":`${t.scope.length} rules, exclusions win`, "port.scan":`about ${Math.round(198 * f)} hosts × ${S.ports === "top1000" ? "1000" : S.ports === "custom" ? "custom" : "100"} ports, CDN edge IPs skipped`,
+      "http.probe":`about ${Math.round(61 * f)} services at ${effRate()} req/s`, "tls.inspect":"every TLS service", "tech.detect":"from responses already fetched", "takeover.check":"CNAMEs only",
+      "js.extract":"JS files from in-scope apps", "screenshot":"one per web app", "score":"local, no traffic", "ai.triage":`top 20 results to the triage model (${esc(S.roles.triage)})`,
+    }[m] || "";
+    return `<span>${m}</span><span>${est}</span>`;
+  }).join("");
+  return `<section class="panel"><span class="ptitle">Plan · nothing has been sent</span><div class="plan">${lines}</div>
+    <p class="dim" style="margin:12px 0 0;font-size:12px">Every request carries ${t.header ? `<span class="muted">${esc(t.header)}</span> and ` : ""}user agent <span class="muted">${esc(t.ua)}</span>.</p></section>`;
+}
+
+VIEWS.running = () => {
+  if (!RUNNING.length) return `
+    <div class="stack"><div class="head"><div><h1>Running scans</h1><p class="sub">Scans keep running while you use other tabs.</p></div></div>
+    <div class="empty"><span>Nothing is running right now.</span><div class="btns"><button class="btn primary" data-act="go" data-v="new-scan">New scan</button><button class="btn" data-act="go" data-v="history">History</button></div></div></div>`;
+  if (!RUNNING.find(r => r.id === S.runSel)) S.runSel = RUNNING[0].id;
+  const r = RUNNING.find(x => x.id === S.runSel), t = TARGETS[r.target];
+  return `
+  <div class="side">
+    <aside class="stack" style="gap:10px">
+      <h1>Running <span class="dim">${RUNNING.length}</span></h1>
+      <div class="runcards">
+        ${RUNNING.map(x => `<button class="runcard ${x.id === r.id ? "on" : ""}" data-act="runsel" data-id="${x.id}">
+          <span><span class="dim">#${x.id}</span> ${esc(x.target)} · ${x.preset}</span>
+          <span class="rb" data-live="bar-${x.id}">${bar(overall(x), 16)}</span>
+          <span class="muted" style="font-size:12px"><span data-live="pct-${x.id}">${overall(x)}%</span> · <span data-live="st-${x.id}">${x.paused ? "paused" : "running"}</span></span>
+        </button>`).join("")}
+      </div>
+      <button class="btn" data-act="go" data-v="new-scan">+ New scan</button>
+    </aside>
+
+    <section class="stack" style="gap:16px">
+      <div class="runhead">
+        <div><h1>Scan #${r.id} <span class="muted" style="font-weight:500">· ${esc(r.target)} · ${presetOf(r.preset).name}</span></h1>
+          <p class="sub"><span data-live="el-${r.id}">${fmtDur(Date.now() - r.started)}</span> · ${pill(r.paused ? "paused" : "running")} · scope strict · ${t.header ? esc(t.header) : "no extra headers"}</p></div>
+        <div class="btns">
+          <button class="btn" data-act="pause">${r.paused ? "Resume" : "Pause"} ${kbd("P")}</button>
+          <span class="ratectl"><button class="btn small" data-act="rate" data-d="-1" aria-label="Slower">−</button><b>${r.rate} req/s</b><button class="btn small" data-act="rate" data-d="1" aria-label="Faster">+</button></span>
+          <button class="btn danger" data-act="cancel-ask">Cancel ${kbd("C")}</button>
+        </div>
+      </div>
+      ${S.cancelAsk === r.id ? `<div class="notice bad"><p style="margin:0 0 8px">Cancel scan #${r.id}? What it found so far is kept and shows up in History.</p>
+        <div class="btns"><button class="btn danger" data-act="cancel-yes">Cancel scan</button><button class="btn" data-act="cancel-no">Keep running</button></div></div>` : ""}
+
+      <section class="panel"><span class="ptitle">Steps · they run at the same time and feed each other</span>
+        <div class="mods">
+          <div class="mod head"><span>Step</span><span>Progress</span><span></span><span>Found</span><span>Notes</span></div>
+          ${r.mods.map((m, i) => modRow(r, m, i)).join("")}
+        </div>
+      </section>
+
+      <section class="panel"><span class="ptitle">Live</span>
+        <div class="feed" id="feed">${feedHtml(r)}</div>
+      </section>
+    </section>
+  </div>`;
+};
+function modState(r, m, i) { if (m.p >= 100) return "done"; if (i === 0 || r.mods[i - 1].p >= 25) return m.p > 0 ? "go" : "wait"; return "wait"; }
+function modOut(r, m) { const M = MODULES[m.id], f = TARGETS[r.target].f || .2; const n = Math.round(M.n * f * m.p / 100); return m.p <= 0 ? "" : `${n.toLocaleString()} ${M.u}`; }
+const NOTES = {
+  "passive.subdomains":"crt.sh, Certspotter, Wayback, OTX …", "dns.resolve":"wildcard answers dropped", "scope.gate":"out-of-scope hosts never contacted",
+  "port.scan":"CDN edge IPs skipped", "http.probe":"look-alike pages grouped", "tls.inspect":"new names go back into the scan", "tech.detect":"from responses already fetched",
+  "takeover.check":"CNAME fingerprints", "score":"new + interesting first", "ai.triage":"triage model", "dns.brute":"wildcard-safe", "dns.permute":"dev-, -staging, -v2",
+  "js.extract":"endpoints and secrets", "screenshot":"headless Chrome", "passive.urls":"archived URLs", "passive.certs":"certificate logs",
+};
+function modRow(r, m, i) {
+  const st = modState(r, m, i);
+  return `<div class="mod ${st}" data-live="m-${r.id}-${i}">
+    <span class="mn">${m.id}</span><span class="mb">${bar(m.p)}</span>
+    <span class="mp">${st === "done" ? "done" : st === "wait" ? "wait" : Math.floor(m.p) + "%"}</span>
+    <span class="mo">${modOut(r, m)}</span><span class="mx">${esc(NOTES[m.id] || "")}</span></div>`;
+}
+function feedHtml(r) { return r.feed.slice(0, 40).map(f => `<div><span class="ft">${f.t}</span><span class="fm">${esc(f.mod)}</span><span>${esc(f.text)}</span></div>`).join("") || `<div><span class="ft"></span><span class="fm"></span><span class="dim">waiting for results…</span></div>`; }
+function overall(r) { return Math.floor(r.mods.reduce((a, m) => a + m.p, 0) / r.mods.length); }
+
+VIEWS.history = () => `
+  <div class="stack">
+    <div class="head"><div><h1>History</h1><p class="sub">Every scan on every target. Open one to see its report and what changed.</p></div>
+      <button class="btn primary" data-act="go" data-v="new-scan">New scan</button></div>
+    <div class="filters">
+      <label class="f">Target<select id="hf-target" data-bind="hf.target" data-refresh="hist">${["all", ...ORDER].map(x => `<option value="${x}" ${S.hf.target === x ? "selected" : ""}>${x === "all" ? "All targets" : esc(x)}</option>`).join("")}</select></label>
+      <label class="f">Status<select id="hf-status" data-bind="hf.status" data-refresh="hist">${["all","done","partial","cancelled"].map(x => `<option value="${x}" ${S.hf.status === x ? "selected" : ""}>${x === "all" ? "Any status" : x}</option>`).join("")}</select></label>
+      <label class="f grow">Search<input type="text" id="hf-q" data-bind="hf.q" data-refresh="hist" data-search value="${esc(S.hf.q)}" placeholder="pipeline, date, #id …" autocomplete="off"></label>
+    </div>
+    <div id="hist-table">${histTable()}</div>
+  </div>`;
+function histRows() {
+  const q = S.hf.q.trim().toLowerCase();
+  return HISTORY.filter(s => (S.hf.target === "all" || s.target === S.hf.target) && (S.hf.status === "all" || s.status === S.hf.status) &&
+    (!q || `#${s.id} ${s.target} ${s.preset} ${s.started} ${s.status}`.toLowerCase().includes(q)));
+}
+function histTable() {
+  const rows = histRows();
+  if (S.histSel >= rows.length) S.histSel = Math.max(0, rows.length - 1);
+  if (!rows.length) return `<div class="empty">No scans match these filters.</div>`;
+  return `<div class="tw"><table class="t"><thead><tr><th>#</th><th>Target</th><th>Pipeline</th><th>Started</th><th>Took</th><th>Found</th><th>Changes</th><th>Status</th><th></th></tr></thead><tbody>
+    ${rows.map((s, i) => `<tr class="row ${i === S.histSel ? "sel" : ""}" data-act="report" data-id="${s.id}" tabindex="0">
+      <td class="dim">${s.id}</td><td>${esc(s.target)}</td><td>${s.preset}</td><td class="muted">${s.started}</td><td class="muted">${s.took}</td>
+      <td>${s.hosts} hosts${s.apps ? " · " + s.apps + " apps" : ""}</td><td>${changesHtml(s)}</td><td>${pill(s.status)}</td>
+      <td class="r"><button class="btn small" data-act="run-again" data-id="${s.id}">Run again</button></td></tr>`).join("")}
+  </tbody></table></div>
+  <p class="dim" style="font-size:12px;margin:10px 0 0">Changes compare each scan with the last scan of the same target that ran the same steps.</p>`;
+}
+function changesHtml(s) {
+  if (s.since == null) return s.status === "done" ? `<span class="muted">first scan</span>` : `<span class="dim">—</span>`;
+  const p = [];
+  if (s.add) p.push(`<span class="ok">+${s.add}</span>`); if (s.chg) p.push(`<span style="color:var(--focus)">~${s.chg}</span>`); if (s.del) p.push(`<span class="bad">-${s.del}</span>`);
+  return p.join(" ") || `<span class="dim">none</span>`;
+}
+
+const RTABS = [["summary","Summary"],["changes","Changes"],["hosts","Hosts"],["web","Web apps"],["tls","TLS"],["notes","Notes"]];
+function viewReport() {
+  const s = findScan(S.reportId) || HISTORY[0];
+  const a = assetsFor(s.target), diff = diffFor(s), t = TARGETS[s.target];
+  const tab = S.reportTab;
+  let body = "";
+  if (tab === "summary") {
+    const top = [...a].sort((x, y) => y.score - x.score).slice(0, 4);
+    const sinceScan = s.since && findScan(s.since);
+    body = `
+      <div class="stats">
+        <div class="stat"><b>${s.hosts}</b><span>hosts</span></div><div class="stat"><b>${s.services}</b><span>services</span></div>
+        <div class="stat"><b>${s.apps}</b><span>web apps</span></div><div class="stat"><b>${s.id === 142 ? 12 : Math.max(1, Math.round(s.apps / 5))}</b><span>look-alike groups</span></div>
+      </div>
+      <p class="muted" style="margin:0">${s.since == null ? (s.status === "done" ? "This was the first scan of this target, so everything is new." : "No comparison for an unfinished scan.") :
+        `Compared with scan #${s.since}${sinceScan ? ` (${sinceScan.started})` : ""}, the last ${s.preset} scan of ${esc(s.target)}: <span class="ok">${s.add} new</span> · <span style="color:var(--focus)">${s.chg} changed</span> · <span class="bad">${s.del} gone</span>`}</p>
+      ${s.note ? `<div class="notice">${esc(s.note)}</div>` : ""}
+      <section class="panel"><span class="ptitle">Top priorities</span><div class="prio">
+        ${top.map(x => `<div>${score(x.score)}<span class="h">${esc(x.host)}</span><span class="muted">${esc(x.why.join(", "))}</span></div>`).join("")}
+      </div></section>
+      <section class="panel"><span class="ptitle">AI summary · ${t.ai === "off" ? "off for this target" : esc(t.ai === "local" ? S.roles.triage : S.roles.analyst)}</span>
+        ${t.ai === "off" ? `<p class="muted" style="margin:0">AI is off for ${esc(s.target)}, so no data from this scan was sent to a model.</p>` :
+        `<p class="prose">${s.target === "acme" ? "Most of this week's new surface is build and staging infrastructure. The CI server and the staging API both appeared after the Nov 19 scan and sit outside the CDN. Start with staging-api: its /debug/vars endpoint is open while production returns 404, which usually means staging runs with debug handlers enabled. The GitHub Pages CNAME on docs is the only takeover candidate." :
+          `The highest-scoring results are services that appeared since the last comparable scan. ${esc(top[0]?.host || "")} stands out: ${esc((top[0]?.why || []).join(", "))}.`}</p>`}
+      </section>
+      <section class="panel"><span class="ptitle">Collection notes</span><ul class="plain">
+        ${s.id === 142 ? `<li>VirusTotal returned 429 (rate limited). Retried 3 times; 41 names still collected.</li><li>6 hosts were out of scope and never contacted, including blog.acme.example.</li><li>23 CDN edge IPs were skipped for port scanning.</li>` : `<li>All sources answered.</li>`}
+      </ul></section>`;
+  } else if (tab === "changes") {
+    body = diff.length ? `<div class="diff">${diff.map(d => `<div><span class="k ${d.k === "+" ? "add" : d.k === "~" ? "chg" : "del"}">${d.k}</span><span class="h">${esc(d.host)}</span><span class="d muted">${esc(d.d)}</span><span>${d.s != null ? score(d.s) : ""}</span></div>`).join("")}</div>`
+      : `<div class="empty">${s.since == null ? "Nothing to compare: this was the first scan of the target, or it didn't finish." : "No changes since the last comparable scan."}</div>`;
+  } else if (tab === "hosts") {
+    body = `<div class="tw"><table class="t"><thead><tr><th>Score</th><th>Host</th><th>IP</th><th>Port</th><th>First seen</th><th>Tags</th></tr></thead><tbody>
+      ${a.map(x => `<tr class="row" data-act="open-asset" data-t="${esc(s.target)}" data-h="${esc(x.host)}"><td>${score(x.score)}</td><td>${esc(x.host)}</td><td class="muted">${esc(x.ip)}</td><td>${x.port}</td><td class="muted">${esc(x.seen)}</td><td>${tagsFor(x.flags)}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  } else if (tab === "web") {
+    const w = a.filter(x => x.code !== "—");
+    body = `<div class="tw"><table class="t"><thead><tr><th>App</th><th>Code</th><th>Title</th><th>Tech</th></tr></thead><tbody>
+      ${w.map(x => `<tr class="row" data-act="open-asset" data-t="${esc(s.target)}" data-h="${esc(x.host)}"><td>https://${esc(x.host)}${x.port !== 443 ? ":" + x.port : ""}</td><td>${x.code}</td><td class="wrap">${esc(x.title)}</td><td class="muted">${esc(x.tech.join(", "))}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  } else if (tab === "tls") {
+    const c = a.filter(x => x.tls).sort((x, y) => x.tls.days - y.tls.days);
+    body = `<div class="tw"><table class="t"><thead><tr><th>Host</th><th>Issuer</th><th>Expires in</th><th>Names</th></tr></thead><tbody>
+      ${c.map(x => `<tr><td>${esc(x.host)}</td><td class="muted">${esc(x.tls.issuer)}</td><td class="${x.tls.days <= 14 ? "bad" : x.tls.days <= 30 ? "warn" : ""}">${x.tls.days} days</td><td class="muted">${x.tls.sans}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  } else {
+    body = `<label class="f">Notes for scan #${s.id} (only on this computer)<textarea id="scan-notes" rows="8" data-bind="scanNotes.${s.id}" placeholder="What did you test? What's next?">${esc(S.scanNotes[s.id] || "")}</textarea></label>`;
+  }
+  return `
+  <div class="stack">
+    <div class="head">
+      <div><p class="sub" style="margin:0 0 2px"><button class="btn link small" data-act="go" data-v="history" style="padding-left:0">← History</button></p>
+        <h1>Report · ${esc(s.target)} · scan #${s.id}</h1>
+        <p class="sub">${presetOf(s.preset).name} · ${s.started} · took ${s.took} · ${pill(s.status)}</p></div>
+      <div class="btns">
+        <button class="btn" data-act="run-again" data-id="${s.id}">Run again</button>
+        <span class="seg">${["md","html","json","csv"].map(f => `<button data-act="export" data-f="${f}">${f}</button>`).join("")}</span>
+      </div>
+    </div>
+    <div class="rtabs" role="tablist">${RTABS.map(([id, l]) => `<button class="${tab === id ? "on" : ""}" data-act="rtab" data-id="${id}" role="tab" aria-selected="${tab === id}">${l}</button>`).join("")}</div>
+    <div class="stack">${body}</div>
+  </div>`;
+}
+
+VIEWS.targets = () => {
+  if (!TARGETS[S.tgtSel]) S.tgtSel = ORDER[0];
+  const id = S.tgtSel, t = TARGETS[id];
+  return `
+  <div class="side">
+    <aside class="stack" style="gap:10px">
+      <h1>Targets</h1>
+      <div class="tlist">${ORDER.map(x => `<button class="tcard ${x === id ? "on" : ""}" data-act="tgt-sel" data-id="${x}"><span>${esc(x)}</span><small>${esc(TARGETS[x].kind)} · ${TARGETS[x].hosts} hosts</small></button>`).join("")}</div>
+      <button class="btn" data-act="new-target-from-targets">+ New target</button>
+    </aside>
+    <section class="stack">
+      <div class="head"><div><h1>${esc(id)}</h1><p class="sub">${esc(t.kind)} · ${esc(t.where)}</p></div>
+        <div class="btns"><button class="btn" data-act="import-toggle">Import scope</button><button class="btn primary" data-act="tgt-scan">New scan on ${esc(id)}</button></div></div>
+      ${S.importOpen ? `<div class="notice info"><p style="margin:0 0 8px">Import scope from:</p><div class="btns">${["HackerOne","Bugcrowd","Intigriti","YesWeHack","A text file"].map(x => `<button class="btn small" data-act="import" data-src="${x}">${x}</button>`).join("")}</div></div>` : ""}
+      <div class="split">
+        <section class="panel"><span class="ptitle">Scope · exclusions always win</span>
+          <div class="rules">${t.scope.map(([k, r], i) => `<div><span class="${k}">${k}</span><span>${esc(r)}</span><button class="x" data-act="rule-del" data-i="${i}" aria-label="Delete rule ${esc(r)}">×</button></div>`).join("")}</div>
+          <form class="addrule" id="rule-form">
+            <select id="rule-kind" data-bind="ruleKind" aria-label="Rule type"><option value="in" ${S.ruleKind === "in" ? "selected" : ""}>in</option><option value="out" ${S.ruleKind === "out" ? "selected" : ""}>out</option></select>
+            <input type="text" id="rule-text" data-bind="ruleText" value="${esc(S.ruleText)}" placeholder="*.example.com, host, IP or CIDR" autocomplete="off" aria-label="Scope rule">
+            <button class="btn" type="submit">Add</button>
+          </form>
+          <div class="hr" style="margin:16px 0 12px"></div>
+          <div class="tester">
+            <label class="f">Is this in scope?<input type="text" id="scope-test" data-bind="scopeTest" data-refresh="scope" value="${esc(S.scopeTest)}" placeholder="host, IP or URL" autocomplete="off"></label>
+            <div class="tres" id="scope-res">${scopeResHtml()}</div>
+          </div>
+        </section>
+        <section class="stack">
+          <section class="panel"><span class="ptitle">Rules for this target</span>
+            <div class="stack" style="gap:10px">
+              <label class="f">Max intensity<select id="tr-level" data-tbind="level" data-num>${LEVELS.map((l, i) => `<option value="${i}" ${t.level === i ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+              <label class="f">Rate limit (requests per second)<input type="number" id="tr-rate" min="1" data-tbind="rate" data-num value="${t.rate}"></label>
+              <label class="f">Required header<input type="text" id="tr-header" data-tbind="header" value="${esc(t.header)}" placeholder="X-Bug-Bounty: yourhandle"></label>
+              <label class="f">User agent<input type="text" id="tr-ua" data-tbind="ua" value="${esc(t.ua)}"></label>
+              <label class="f">AI allowed<select id="tr-ai" data-tbind="ai">${Object.entries(AI_LABEL).map(([k, v]) => `<option value="${k}" ${t.ai === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            </div>
+          </section>
+          <section class="panel"><span class="ptitle">Stats</span>
+            <dl class="kv" style="margin:0"><dt>hosts</dt><dd>${t.hosts}</dd><dt>services</dt><dd>${t.services}</dd><dt>web apps</dt><dd>${t.apps}</dd>
+            <dt>last scan</dt><dd>${(() => { const h = HISTORY.find(x => x.target === id); return h ? `#${h.id} · ${h.started}` : "never"; })()}</dd></dl>
+          </section>
+        </section>
+      </div>
+    </section>
+  </div>`;
+};
+function scopeResHtml() {
+  const r = scopeCheck(S.scopeTest, TARGETS[S.tgtSel].scope);
+  if (r.state === "empty") return `<span class="dim">${r.why}</span>`;
+  return r.state === "in" ? `<span class="ok">✓ in scope</span> <span class="muted">· ${esc(r.why)}</span>` : `<span class="bad">✗ out of scope</span> <span class="muted">· ${esc(r.why)}</span>`;
+}
+
+VIEWS.assets = () => `
+  <div class="stack">
+    <div class="head"><div><h1>Assets</h1><p class="sub">Everything found for a target. Filter with a short query.</p></div>
+      <label class="f" style="min-width:10rem">Target<select id="a-target" data-bind="aTarget" data-rerender>${ORDER.map(x => `<option ${S.aTarget === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label></div>
+    <div>
+      <input type="text" id="a-query" data-bind="aQuery" data-refresh="assets" data-search value="${esc(S.aQuery)}" placeholder="tech:jenkins port:8443 score>60 new !tag:tested" autocomplete="off" aria-label="Query">
+      <div class="qhelp">${["new","score>60","tech:nginx","port:8443","code:401","takeover","!tag:ignored"].map(q => `<button data-act="q" data-q="${q}">${q}</button>`).join("")}</div>
+    </div>
+    <div class="split">
+      <div id="asset-table">${assetTable()}</div>
+      <section class="panel" id="asset-detail">${assetDetail()}</section>
+    </div>
+  </div>`;
+function assetRows() {
+  const toks = S.aQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return assetsFor(S.aTarget).filter(a => toks.every(tok => {
+    let neg = false; if (tok.startsWith("!")) { neg = true; tok = tok.slice(1); }
+    let ok;
+    const m = /^(tech|port|code|tag|host):(.+)$/.exec(tok), sc = /^score([<>]=?)(\d+)$/.exec(tok);
+    if (m) {
+      const v = m[2];
+      ok = m[1] === "tech" ? a.tech.some(x => x.toLowerCase().includes(v)) : m[1] === "port" ? String(a.port) === v : m[1] === "code" ? String(a.code) === v :
+        m[1] === "host" ? a.host.includes(v) : (S.tags[a.host] || "") === v;
+    } else if (sc) { const n = +sc[2]; ok = sc[1] === ">" ? a.score > n : sc[1] === ">=" ? a.score >= n : sc[1] === "<" ? a.score < n : a.score <= n; }
+    else if (["new","changed","takeover","expiring"].includes(tok)) ok = a.flags.includes(tok);
+    else ok = `${a.host} ${a.title} ${a.tech.join(" ")} ${a.ip}`.toLowerCase().includes(tok);
+    return neg ? !ok : ok;
+  }));
+}
+function assetTable() {
+  const rows = assetRows();
+  if (!rows.length) return `<div class="empty">No assets match <span class="hot">${esc(S.aQuery)}</span>.</div>`;
+  if (!rows.find(r => r.host === S.aSel)) S.aSel = rows[0].host;
+  return `<div class="tw"><table class="t"><thead><tr><th>Score</th><th>Host</th><th>Port</th><th>Code</th><th>Title / tech</th></tr></thead><tbody>
+    ${rows.map(a => `<tr class="row ${a.host === S.aSel ? "sel" : ""}" data-act="asset-sel" data-h="${esc(a.host)}" tabindex="0">
+      <td>${score(a.score)}</td><td>${esc(a.host)} ${tagsFor(a.flags.filter(f => f !== "cluster ×14"))}${S.tags[a.host] ? `<span class="tag">${esc(S.tags[a.host])}</span>` : ""}</td>
+      <td>${a.port}</td><td>${a.code}</td><td class="muted">${esc(a.tech[0] || "")}${a.flags.includes("cluster ×14") ? ` <span class="tag">×14</span>` : ""}</td></tr>`).join("")}
+  </tbody></table></div><p class="dim" style="font-size:12px;margin:8px 0 0">${rows.length} of ${assetsFor(S.aTarget).length} shown</p>`;
+}
+function assetDetail() {
+  const a = assetsFor(S.aTarget).find(x => x.host === S.aSel);
+  if (!a) return `<span class="ptitle">Detail</span><p class="muted" style="margin:0">Pick an asset.</p>`;
+  const t = TARGETS[S.aTarget];
+  const tabs = [["response","Response"],["headers","Headers"],["tls","TLS"],["history","History"],["notes","Notes"],["ai","AI"]];
+  let body;
+  if (S.aTab === "response") body = `<pre class="raw">${rawResponse(a)}</pre>`;
+  else if (S.aTab === "headers") body = `<dl class="kv"><dt>server</dt><dd>${esc(a.server)}</dd><dt>status</dt><dd>${a.code}</dd><dt>hsts</dt><dd>${a.tls ? "max-age=31536000" : "—"}</dd><dt>csp</dt><dd>${a.score > 60 ? '<span class="warn">missing</span>' : "default-src 'self'"}</dd><dt>x-frame</dt><dd>${a.score > 60 ? '<span class="warn">missing</span>' : "DENY"}</dd></dl>`;
+  else if (S.aTab === "tls") body = a.tls ? `<dl class="kv"><dt>issuer</dt><dd>${esc(a.tls.issuer)}</dd><dt>expires</dt><dd class="${a.tls.days <= 14 ? "bad" : ""}">in ${a.tls.days} days</dd><dt>names</dt><dd>${a.tls.sans}</dd><dt>protocol</dt><dd>TLS 1.3 · TLS_AES_128_GCM_SHA256</dd></dl>` : `<p class="muted" style="margin:0">No TLS on this service.</p>`;
+  else if (S.aTab === "history") body = `<div class="timeline"><div><b>${esc(a.seen.split(" · ")[0])}</b>first seen (${esc(a.seen.split(" · ")[1] || "")})</div>${a.flags.includes("changed") ? `<div><b>Today</b>version changed</div>` : ""}<div><b>Today</b>still answering · ${a.code}</div></div>`;
+  else if (S.aTab === "notes") body = `<textarea id="asset-notes" rows="6" data-bind="notes.${esc(a.host)}" placeholder="Notes for ${esc(a.host)}" aria-label="Notes">${esc(S.notes[a.host] || "")}</textarea>`;
+  else body = t.ai === "off" ? `<p class="muted" style="margin:0">AI is off for ${esc(S.aTarget)}.</p>` :
+    `<p style="margin:0 0 8px"><span class="dim">triage · ${esc(t.ai === "local" ? S.roles.triage : S.roles.triage)}</span></p>
+     <p style="margin:0 0 6px">Score ${score(a.score)} because: ${esc(a.why.join("; "))}.</p>
+     <p class="muted" style="margin:0 0 10px">Next: ${a.score >= 80 ? "check whether anonymous users can read jobs or the script console, using one request each." : "look for differences from the production equivalent."}</p>
+     <button class="btn small" data-act="ask-ai" data-h="${esc(a.host)}">Ask the copilot about this host</button>`;
+  return `<span class="ptitle">${esc(a.host)}:${a.port}</span>
+    <dl class="kv"><dt>ip</dt><dd>${esc(a.ip)}</dd><dt>first seen</dt><dd>${esc(a.seen)}</dd><dt>tech</dt><dd>${esc(a.tech.join(" · "))}</dd><dt>score</dt><dd>${score(a.score)} <span class="muted">${esc(a.why.join(" · "))}</span></dd></dl>
+    <div class="dtabs">${tabs.map(([id, l]) => `<button class="${S.aTab === id ? "on" : ""}" data-act="atab" data-id="${id}">${l}</button>`).join("")}</div>
+    ${body}
+    <div class="btns" style="margin-top:12px">
+      ${["interesting","tested","ignored"].map(x => `<button class="btn small" data-act="atag" data-h="${esc(a.host)}" data-v="${x}">${S.tags[a.host] === x ? "✓ " : ""}${x}</button>`).join("")}
+      <button class="btn small" data-act="toast" data-msg="Prototype: would send https://${esc(a.host)} to Burp through the proxy in Settings">Send to Burp</button>
+      <button class="btn small" data-act="copy" data-v="https://${esc(a.host)}${a.port !== 443 ? ":" + a.port : ""}/">Copy URL</button>
+    </div>`;
+}
+function rawResponse(a) {
+  if (a.code === "—") return `<span class="c"># raw banner from ${esc(a.host)}:${a.port}</span>\n${esc(a.title)}`;
+  const body = a.host.startsWith("staging-api") ? `{"cmdline":["/srv/acme-api","-env=staging"],"memstats":{"Alloc":7342136,"Sys":25463048, …}}`
+    : `&lt;title&gt;${esc(a.title)}&lt;/title&gt; …`;
+  const path = a.host.startsWith("staging-api") ? "/debug/vars" : "/";
+  return `<span class="c"># GET ${path}  ·  stored response, no new request sent</span>\n<span class="s">HTTP/1.1 ${a.code}</span>\n<span class="h">Server:</span> ${esc(a.server)}\n<span class="h">Content-Type:</span> ${a.host.startsWith("staging-api") ? "application/json" : "text/html; charset=utf-8"}\n${a.code === 401 ? `<span class="h">WWW-Authenticate:</span> Basic realm="UAT"\n` : ""}${a.code === 302 ? `<span class="h">Location:</span> /login\n` : ""}\n${body}`;
+}
+
+VIEWS.inbox = () => {
+  const open = S.inbox.filter(x => !x.done), done = S.inbox.filter(x => x.done);
+  if (S.inSel >= open.length) S.inSel = Math.max(0, open.length - 1);
+  return `
+  <div class="stack">
+    <div class="head"><div><h1>Inbox <span class="dim">${open.length}</span></h1><p class="sub">New and changed findings across your targets. Go through them one key at a time.</p></div></div>
+    ${open.length ? `<section class="panel"><span class="ptitle">To look at</span><div class="inb">
+      ${open.map((x, i) => `<div class="it ${i === S.inSel ? "sel" : ""}" data-act="in-sel" data-i="${i}" tabindex="0">
+        <span class="hot">${i === S.inSel ? "▸" : ""}</span>${score(x.s)}<span class="h">${esc(x.host)}</span><span class="w">${esc(x.w)}</span>
+        <span class="acts">${[["i","interesting"],["t","tested"],["x","ignore"],["s","snooze 7d"]].map(([k, l]) => `<button class="btn small" data-act="in-do" data-i="${i}" data-k="${k}" title="${l}">${k}</button>`).join("")}</span>
+      </div>`).join("")}</div></section>` : `<div class="empty"><span>Inbox zero. New findings land here after each scan.</span><button class="btn" data-act="go" data-v="history">History</button></div>`}
+    ${done.length ? `<section class="panel"><span class="ptitle">Handled</span><div class="done-list">${done.map(x => `<div><span class="pill">${x.done}</span> ${esc(x.host)}</div>`).join("")}</div>
+      <div class="btns" style="margin-top:10px"><button class="btn small" data-act="in-undo">Undo last</button></div></section>` : ""}
+  </div>`;
+};
+
+const TOOLS = [
+  {id:"http", name:"HTTP request", d:"Send one request, see the raw response"},
+  {id:"dns", name:"DNS lookup", d:"A, AAAA, CNAME, MX, TXT, NS, CAA"},
+  {id:"cert", name:"Certificate", d:"Fetch and read a TLS certificate"},
+  {id:"port", name:"Port check", d:"A few TCP ports on one host"},
+  {id:"subs", name:"Quick subdomains", d:"Passive lookup in certificate logs"},
+  {id:"rdap", name:"Domain owner", d:"Registrar, dates, name servers (RDAP)"},
+  {id:"asn", name:"IP owner", d:"Network and prefix for an IP"},
+  {id:"favicon", name:"Favicon hash", d:"Find related hosts on Shodan"},
+  {id:"scope", name:"Scope test", d:"Check many hosts at once", real:true},
+  {id:"decode", name:"Encode / decode", d:"Base64, URL, hex, HTML", real:true},
+  {id:"jwt", name:"JWT decoder", d:"Read a token's header and claims", real:true},
+  {id:"cidr", name:"CIDR calculator", d:"Range, size, first and last", real:true},
+];
+const b64u = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const SAMPLE_JWT = b64u('{"alg":"HS256","typ":"JWT"}') + "." + b64u('{"sub":"4815","name":"test user","role":"viewer","iat":1764000000,"exp":1767225600}') + ".c2lnbmF0dXJlLW5vdC1jaGVja2Vk";
+const TOOL_DEFAULTS = {
+  http:{req:"GET /debug/vars HTTP/1.1\nHost: staging-api.acme.example:8443\nAccept: */*"}, dns:{v:"jenkins.acme.example"}, cert:{v:"pay.acme.example:443"},
+  port:{v:"staging-api.acme.example", ports:"22,80,443,8080,8443"}, subs:{v:"acme.example"}, rdap:{v:"acme.example"}, asn:{v:"203.0.113.17"},
+  favicon:{v:"https://jenkins.acme.example"}, scope:{t:"acme", v:"admin.acme.example\nacme.example\nblog.acme.example\n203.0.113.9\nhttps://api.acme-pay.example/v1"},
+  decode:{mode:"b64d", v:"eyJ1c2VyIjoiYWRtaW4iLCJyb2xlIjoic3VwZXIifQ=="}, jwt:{v:SAMPLE_JWT}, cidr:{v:"203.0.113.0/26"},
+};
+const tin = id => (S.toolIn[id] ||= {...TOOL_DEFAULTS[id]});
+VIEWS.tools = () => {
+  const tool = TOOLS.find(t => t.id === S.tool), v = tin(tool.id);
+  let form;
+  if (tool.id === "http") form = `<label class="f">Raw request<textarea id="ti-req" rows="5" data-bind="toolIn.http.req">${esc(v.req)}</textarea></label>`;
+  else if (tool.id === "port") form = `<div class="formgrid"><label class="f">Host<input type="text" id="ti-v" data-bind="toolIn.port.v" value="${esc(v.v)}"></label><label class="f">Ports<input type="text" id="ti-ports" data-bind="toolIn.port.ports" value="${esc(v.ports)}"></label></div>`;
+  else if (tool.id === "scope") form = `<div class="formgrid"><label class="f">Target<select id="ti-t" data-bind="toolIn.scope.t">${ORDER.map(x => `<option ${v.t === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label></div><label class="f">Hosts, one per line<textarea id="ti-v" rows="6" data-bind="toolIn.scope.v">${esc(v.v)}</textarea></label>`;
+  else if (tool.id === "decode") form = `<div class="formgrid"><label class="f">Mode<select id="ti-mode" data-bind="toolIn.decode.mode">${[["b64d","Base64 decode"],["b64e","Base64 encode"],["urld","URL decode"],["urle","URL encode"],["hexd","Hex decode"],["hexe","Hex encode"],["htmle","HTML escape"]].map(([k, l]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label class="f">Input<textarea id="ti-v" rows="4" data-bind="toolIn.decode.v">${esc(v.v)}</textarea></label>`;
+  else if (tool.id === "jwt") form = `<label class="f">Token<textarea id="ti-v" rows="4" data-bind="toolIn.jwt.v">${esc(v.v)}</textarea></label>`;
+  else form = `<label class="f">${{dns:"Name",cert:"Host:port",subs:"Domain",rdap:"Domain",asn:"IP address",favicon:"URL",cidr:"CIDR"}[tool.id]}<input type="text" id="ti-v" data-bind="toolIn.${tool.id}.v" value="${esc(v.v)}" autocomplete="off"></label>`;
+  return `
+  <div class="side">
+    <aside class="stack" style="gap:10px"><h1>Tools</h1>
+      <div class="toolgrid">${TOOLS.map(t => `<button class="${t.id === S.tool ? "on" : ""}" data-act="tool" data-id="${t.id}">${t.name}<small>${t.d}</small></button>`).join("")}</div>
+      <p class="dim" style="font-size:12px;margin:0">Every tool is also in ${kbd("Ctrl K")}.</p>
+    </aside>
+    <section class="stack">
+      <div class="head"><div><h1>${tool.name}</h1><p class="sub">${tool.d}</p></div><span class="srcnote">${tool.real ? "works here: computed in your browser" : "sample output in this prototype"}</span></div>
+      <form class="stack" id="tool-form" style="gap:12px">${form}
+        ${tool.id === "http" ? `<p class="dim" style="font-size:12px;margin:0">In scope for acme (matched *.acme.example). Adds the target's header <span class="muted">${esc(TARGETS.acme.header)}</span> automatically.</p>` : ""}
+        <div class="btns"><button class="btn primary" type="submit">Run ${kbd("↵")}</button></div>
+      </form>
+      <div id="tool-out">${S.toolOut && S.toolOut.id === tool.id ? `<pre class="raw">${S.toolOut.html}</pre>` : ""}</div>
+    </section>
+  </div>`;
+};
+function runTool() {
+  const id = S.tool, v = tin(id); let out = "";
+  const h = normHost(v.v || ""), n = hashNum(h || "x");
+  try {
+    if (id === "http") {
+      const first = (v.req.split("\n")[0] || "").trim();
+      out = `<span class="c"># ${esc(first)}  ·  sample response</span>\n<span class="s">HTTP/1.1 200 OK</span>\n<span class="h">Content-Type:</span> application/json; charset=utf-8\n<span class="h">Content-Length:</span> 2214\n<span class="h">Date:</span> ${new Date().toUTCString()}\n\n{"cmdline":["/srv/acme-api","-env=staging"],\n "memstats":{"Alloc":7342136,"TotalAlloc":91233880,"Sys":25463048,"NumGC":412, …}}`;
+    } else if (id === "dns") {
+      out = `<span class="c">;; ${esc(h)} via 1.1.1.1 · 12 ms</span>\n<span class="h">A    </span>  203.0.113.${n % 200 + 10}   ttl 300\n<span class="h">AAAA </span>  —\n<span class="h">CNAME</span>  —\n<span class="h">CAA  </span>  0 issue "letsencrypt.org"\n<span class="h">TXT  </span>  —\n<span class="c">;; not a wildcard zone (3 random names returned NXDOMAIN)</span>`;
+    } else if (id === "cert") {
+      const days = h.startsWith("pay.") ? 3 : n % 300 + 20;
+      out = `<span class="h">subject </span> CN=${esc(h.split(":")[0])}\n<span class="h">names   </span> ${esc(h.split(":")[0])}, www.${esc(h.split(":")[0].split(".").slice(1).join("."))}\n<span class="h">issuer  </span> ${days < 10 ? "DigiCert TLS RSA SHA256 2020 CA1" : "Let's Encrypt R11"}\n<span class="h">expires </span> <span class="${days < 14 ? "" : "s"}">in ${days} days</span>${days < 14 ? "  ← renew soon" : ""}\n<span class="h">key     </span> ECDSA P-256\n<span class="h">protocol</span> TLS 1.3 · TLS_AES_128_GCM_SHA256`;
+    } else if (id === "port") {
+      const ports = (v.ports || "").split(/[\s,]+/).filter(Boolean).slice(0, 20);
+      out = `<span class="c"># ${esc(h)} · TCP connect · 2 s timeout</span>\n` + ports.map(p => { const open = (hashNum(h + p) % 3 === 0) || ["443","8443"].includes(p); return `${p.padEnd(6)} ${open ? '<span class="s">open  </span>' : "closed"} ${open ? (p === "22" ? "SSH-2.0-OpenSSH_9.6" : p === "8443" || p === "443" ? "TLS · HTTP/1.1" : "") : ""}`; }).join("\n");
+    } else if (id === "subs") {
+      out = `<span class="c"># crt.sh + Certspotter · ${esc(h)}</span>\n` + ["www","api","staging-api","jenkins","grafana","uat","docs","status","pay","cdn2"].map(x => `${x}.${esc(h)}`).join("\n") + `\n<span class="c"># 10 names · run a full scan to resolve and probe them</span>`;
+    } else if (id === "rdap") {
+      out = `<span class="h">registrar </span> Example Registrar, Inc.\n<span class="h">created   </span> 2009-03-14\n<span class="h">expires   </span> 2027-03-14\n<span class="h">nameserver</span> ns1.${esc(h)}, ns2.${esc(h)}\n<span class="h">status    </span> clientTransferProhibited`;
+    } else if (id === "asn") {
+      out = `<span class="h">ip     </span> ${esc(h)}\n<span class="h">asn    </span> AS64500\n<span class="h">network</span> ${esc(h.split(".").slice(0, 3).join("."))}.0/24\n<span class="h">org    </span> ACME-NET\n<span class="c"># reverse DNS: ${n % 2 ? "jenkins.acme.example" : "no PTR record"}</span>`;
+    } else if (id === "favicon") {
+      out = `<span class="h">favicon </span> ${esc(v.v.replace(/\/$/, ""))}/favicon.ico\n<span class="h">mmh3    </span> 81586312\n<span class="h">matches </span> Jenkins default icon\n<span class="h">shodan  </span> http.favicon.hash:81586312`;
+    } else if (id === "scope") {
+      const rules = TARGETS[v.t].scope;
+      out = v.v.split("\n").map(x => x.trim()).filter(Boolean).map(x => { const r = scopeCheck(x, rules); return `${r.state === "in" ? '<span class="s">✓ in </span>' : "✗ out"}  ${esc(x).padEnd(34)} <span class="c">${esc(r.why)}</span>`; }).join("\n");
+    } else if (id === "decode") {
+      const s = v.v; let r;
+      if (v.mode === "b64d") r = decodeURIComponent(escape(atob(s.trim().replace(/-/g, "+").replace(/_/g, "/"))));
+      else if (v.mode === "b64e") r = btoa(unescape(encodeURIComponent(s)));
+      else if (v.mode === "urld") r = decodeURIComponent(s.replace(/\+/g, " "));
+      else if (v.mode === "urle") r = encodeURIComponent(s);
+      else if (v.mode === "hexd") r = decodeURIComponent(s.replace(/\s+/g, "").replace(/(..)/g, "%$1"));
+      else if (v.mode === "hexe") r = [...new TextEncoder().encode(s)].map(b => b.toString(16).padStart(2, "0")).join("");
+      else r = s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+      out = esc(r);
+    } else if (id === "jwt") {
+      const parts = v.v.trim().split(".");
+      if (parts.length < 2) throw new Error("A JWT has three parts separated by dots.");
+      const dec = p => JSON.parse(decodeURIComponent(escape(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4)))));
+      const hd = dec(parts[0]), pl = dec(parts[1]);
+      const exp = pl.exp ? new Date(pl.exp * 1000) : null;
+      out = `<span class="c"># header</span>\n${esc(JSON.stringify(hd, null, 2))}\n<span class="c"># claims</span>\n${esc(JSON.stringify(pl, null, 2))}\n` +
+        (exp ? `<span class="c"># exp = ${exp.toISOString()} (${exp < new Date() ? "expired" : "still valid"})</span>\n` : "") +
+        (String(hd.alg).toLowerCase() === "none" ? `<span class="h">warning:</span> alg is "none", so the token is unsigned` : `<span class="c"># signature not checked</span>`);
+    } else if (id === "cidr") {
+      const m = /^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/.exec(v.v.trim());
+      if (!m || +m[2] > 32 || ip4(m[1]) == null) throw new Error("Use the form 203.0.113.0/24.");
+      const bits = +m[2], mask = bits ? (~0 << (32 - bits)) >>> 0 : 0, net = (ip4(m[1]) & mask) >>> 0, bc = (net | (~mask >>> 0)) >>> 0;
+      const s = x => [x >>> 24, (x >>> 16) & 255, (x >>> 8) & 255, x & 255].join(".");
+      const size = 2 ** (32 - bits);
+      out = `<span class="h">network  </span> ${s(net)}/${bits}\n<span class="h">netmask  </span> ${s(mask)}\n<span class="h">first    </span> ${s(bits >= 31 ? net : net + 1)}\n<span class="h">last     </span> ${s(bits >= 31 ? bc : bc - 1)}\n<span class="h">broadcast</span> ${s(bc)}\n<span class="h">addresses</span> ${size.toLocaleString()}${bits < 31 ? ` (${(size - 2).toLocaleString()} usable)` : ""}`;
+    }
+  } catch (e) { out = `<span class="h">error:</span> ${esc(e.message || "Couldn't read that input.")}`; }
+  S.toolOut = {id, html:out};
+  $("#tool-out").innerHTML = `<pre class="raw">${out}</pre>`;
+}
+
+function defaultChat() {
+  return [
+    {who:"you", text:"which hosts look non-prod and expose something prod doesn't?"},
+    {who:"ai", tools:[["query_assets", 'host ~ "stag|dev|uat|test", code:200', "9 rows"], ["diff_assets", "staging-api.acme.example, api.acme.example", "3 differences"]],
+      text:"Three stand out:\n1. staging-api.acme.example: /debug/vars returns 200 (prod returns 404). Go's expvar exposes command-line flags and memory stats. Next: one GET to /debug/pprof/.\n2. uat.acme.example: Basic auth on a fresh IP outside the CDN. Next: check whether the same app is reachable through the CDN hostname without auth.\n3. ci-internal.acme.example: nginx 403 on 8080, right next to jenkins.acme.example."},
+    {who:"you", text:"scan those for open ports and web servers"},
+    {who:"ai", text:"Here's what I'd run. Nothing starts until you confirm.", propose:{desc:"port.scan top 100 + http.probe on 9 hosts", detail:"9 of 9 in scope · about 900 probes · ~2 min at acme's limit of 10 req/s"}},
+  ];
+}
+VIEWS.ai = () => {
+  if (!S.chat) S.chat = defaultChat();
+  const t = TARGETS[S.chatTarget];
+  const model = t.ai === "local" ? S.roles.triage : S.roles.chat;
+  return `
+  <div class="stack">
+    <div class="head"><div><h1>AI copilot</h1><p class="sub">Ask about a target's data. The AI can read what ReconForge found, but it only suggests scans: you confirm each one.</p></div></div>
+    <div class="ctxbar">
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px">Target<select id="chat-target" data-bind="chatTarget" data-rerender>${ORDER.map(x => `<option ${S.chatTarget === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+      <span>model <b class="hot" style="font-weight:500">${t.ai === "off" ? "none" : esc(model)}</b></span>
+      <span>${t.ai === "local" ? "this target allows local models only" : t.ai === "off" ? "" : "from Settings › AI roles"}</span>
+      <span>this chat <b style="font-weight:500">$0.03</b></span>
+      <button class="btn link small" data-act="chat-clear">Clear</button>
+    </div>
+    ${t.ai === "off" ? `<div class="notice bad">AI is off for ${esc(S.chatTarget)}, so nothing from it can be sent to a model. Change this in Targets › ${esc(S.chatTarget)} › AI allowed.</div>` : ""}
+    <section class="panel"><span class="ptitle">Chat · ${esc(S.chatTarget)}</span>
+      <div class="chat" id="chat-log">${chatHtml()}</div>
+    </section>
+    <div class="qhelp">${["What changed this week?","Which hosts look non-prod?","Draft a report for staging-api"].map(q => `<button data-act="chat-chip" data-q="${esc(q)}" ${t.ai === "off" ? "disabled" : ""}>${esc(q)}</button>`).join("")}</div>
+    <form class="chatin" id="chat-form">
+      <input type="text" id="chat-in" placeholder="${t.ai === "off" ? "AI is off for this target" : "Ask about " + esc(S.chatTarget) + "…"}" ${t.ai === "off" ? "disabled" : ""} autocomplete="off" aria-label="Message">
+      <button class="btn primary" type="submit" ${t.ai === "off" ? "disabled" : ""}>Send ${kbd("↵")}</button>
+    </form>
+  </div>`;
+};
+function chatHtml() {
+  return S.chat.map((m, i) => `<div class="msg ${m.who}"><span class="who">${m.who}</span><div class="body">
+    ${(m.tools || []).map(([n, a, r]) => `<div class="tool">tool <b>${esc(n)}</b>(${esc(a)}) → ${esc(r)}</div>`).join("")}
+    ${m.text ? m.text.split("\n").map(l => `<p>${esc(l)}</p>`).join("") : ""}
+    ${m.propose ? `<div class="propose"><div><span class="hot">Proposed</span> ${esc(m.propose.desc)}</div><div class="muted" style="font-size:12px">${esc(m.propose.detail)}</div>
+      ${m.propose.state ? `<div class="muted">${esc(m.propose.state)}</div>` : `<div class="btns"><button class="btn primary small" data-act="propose-run" data-i="${i}">Run it</button><button class="btn small" data-act="propose-dismiss" data-i="${i}">Dismiss</button></div>`}</div>` : ""}
+  </div></div>`).join("") + (S.chatBusy ? `<div class="msg ai"><span class="who">ai</span><div class="body dim">thinking…</div></div>` : "");
+}
+const CANNED = {
+  "What changed this week?":{tools:[["diff","acme, since Nov 19","4 new · 1 changed · 2 gone"]], text:"4 new hosts, all build or staging infrastructure: jenkins, staging-api, ci-internal and uat. Grafana moved from 11.0 to 11.2. old.acme.example and legacy-sso.acme.example are gone."},
+  "Which hosts look non-prod?":{tools:[["query_assets",'host ~ "stag|dev|uat|test|internal"',"4 rows"]], text:"staging-api, uat, ci-internal and jenkins. staging-api is the most interesting because it exposes /debug/vars, which production doesn't."},
+  "Draft a report for staging-api":{tools:[["get_asset","staging-api.acme.example","1 row"],["get_response","staging-api.acme.example/debug/vars","200 · 2214 bytes"]], text:"Title: Go expvar debug endpoint exposed on staging API\nSummary: https://staging-api.acme.example:8443/debug/vars returns process command-line flags and memory statistics without authentication.\nSteps: 1. GET /debug/vars. 2. Observe the cmdline and memstats fields.\nImpact: reveals internal paths and runtime flags that help an attacker map the service.\nI've left severity for you to decide."},
+};
+function sendChat(text) {
+  if (!text.trim() || S.chatBusy) return;
+  S.chat.push({who:"you", text});
+  S.chatBusy = true; refreshChat();
+  setTimeout(() => {
+    S.chatBusy = false;
+    S.chat.push(CANNED[text] ? {who:"ai", ...CANNED[text]} : {who:"ai", text:"This is a prototype, so no model is connected. In the real app the chat model from Settings answers here, reading this target's data through read-only tools."});
+    S.aiSpend += 0.01; refreshChat(); updateStatus();
+  }, 700);
+}
+function refreshChat() { const el = $("#chat-log"); if (el) { el.innerHTML = chatHtml(); el.scrollTop = el.scrollHeight; } }
+
+const CFG = [["ai","AI providers & models"],["privacy","AI budget & privacy"],["keys","Data source keys"],["speed","Speed & limits"],["resolvers","DNS resolvers"],["proxy","Proxy (Burp / Caido)"],["look","Appearance"],["keybind","Keyboard"],["storage","Storage"]];
+VIEWS.config = () => {
+  let body = "";
+  if (S.cfg === "ai") {
+    const ap = S.addProv, pp = PROVIDER_PRESETS.find(p => p.id === ap.preset);
+    body = `
+      <section class="panel"><span class="ptitle">Providers</span>
+        <div class="provs">${S.providers.map((p, i) => `<div class="p">
+          <span class="${p.status === "ok" ? "ok" : p.status === "testing" ? "warn" : p.status === "not tested" ? "dim" : "bad"}">●</span>
+          <span>${esc(p.name)}</span><span class="u">${esc(PROVIDER_PRESETS.find(x => x.id === p.preset)?.label || p.preset)} · ${esc(p.url)}</span>
+          <span class="kk muted" style="font-size:12px">${esc(p.key)}</span>
+          <span class="btns"><span class="muted" style="font-size:12px;min-width:9ch">${p.status === "ok" ? p.ms + " ms" : esc(p.status)}</span><button class="btn small" data-act="prov-test" data-i="${i}">Test</button><button class="btn small" data-act="prov-del" data-i="${i}" aria-label="Remove ${esc(p.name)}">×</button></span>
+        </div>`).join("")}</div>
+        ${ap.open ? `
+        <form class="stack" id="prov-form" style="gap:12px;margin-top:16px">
+          <div class="formgrid">
+            <label class="f">Provider<select id="ap-preset" data-act-change="ap-preset">${PROVIDER_PRESETS.map(p => `<option value="${p.id}" ${ap.preset === p.id ? "selected" : ""}>${p.label}</option>`).join("")}</select></label>
+            <label class="f">Name<input type="text" id="ap-name" data-bind="addProv.name" value="${esc(ap.name)}" placeholder="${esc(ap.preset)}" autocomplete="off"></label>
+          </div>
+          <label class="f">Base URL ${pp.id === "custom" ? "" : `<span class="dim">filled in for ${esc(pp.label)}, change it if you use a proxy</span>`}<input type="text" id="ap-url" data-bind="addProv.url" value="${esc(ap.url)}" placeholder="https://your-server.example/v1" autocomplete="off"></label>
+          ${pp.local ? `<p class="dim" style="margin:0;font-size:12px">Runs on your machine. No API key needed and nothing leaves your computer.</p>` :
+          `<label class="f">API key <span class="dim">saved to your system keychain, never to the config file</span><input type="password" id="ap-key" data-bind="addProv.key" value="${esc(ap.key)}" placeholder="paste key" autocomplete="off"></label>`}
+          ${pp.id === "custom" ? `<label class="f">Extra headers <span class="dim">optional, one per line</span><textarea id="ap-headers" rows="2" placeholder="api-version: 2024-10-21"></textarea></label>` : ""}
+          <p class="dim" style="margin:0;font-size:12px">Speaks: ${esc(pp.proto)}</p>
+          ${ap.err ? `<p class="err" style="margin:0">${esc(ap.err)}</p>` : ""}
+          <div class="btns"><button class="btn primary" type="submit">Add provider</button><button class="btn" type="button" data-act="ap-cancel">Cancel</button></div>
+        </form>` : `<div class="btns" style="margin-top:14px"><button class="btn" data-act="ap-open">+ Add provider</button></div>`}
+      </section>
+      <section class="panel"><span class="ptitle">Which model does what</span>
+        <div class="roles">
+          ${[["triage","Scores every result. Runs a lot, so a cheap or local model fits."],["analyst","Report summaries and deeper reasoning."],["chat","The copilot in the AI tab."],["vision","Reads screenshots: login page, admin panel, error page."]].map(([r, d]) => `
+          <span>${r}</span><select id="role-${r}" data-bind="roles.${r}" aria-label="${r} model">${MODELS.map(m => `<option ${S.roles[r] === m ? "selected" : ""}>${m}</option>`).join("")}</select><small>${d}</small>`).join("")}
+        </div>
+      </section>`;
+  } else if (S.cfg === "privacy") {
+    const p = S.privacy;
+    body = `<section class="panel"><span class="ptitle">Budget</span><div class="formgrid">
+        <label class="f">Monthly limit (USD)<input type="number" id="pv-budget" data-bind="privacy.budget" data-num value="${p.budget}"></label>
+        <label class="f">Limit per scan (USD)<input type="number" id="pv-scan" data-bind="privacy.perScan" data-num value="${p.perScan}" step="0.5"></label>
+      </div><p class="muted" style="margin:12px 0 0">Spent this month: <b>$${(6.18 + S.aiSpend).toFixed(2)}</b> of $${p.budget}</p></section>
+      <section class="panel"><span class="ptitle">Before anything is sent to a model</span><div class="stack" style="gap:10px">
+        ${[["redactCookies","Remove cookies and auth headers"],["redactSecrets","Remove secrets found in JavaScript"],["maskHosts","Replace hostnames with placeholders"],["preview","Show me what will be sent, with a cost estimate"]].map(([k, l]) => `<label class="check"><input type="checkbox" data-act="pv" data-id="${k}" ${p[k] ? "checked" : ""}><span>${l}</span></label>`).join("")}
+      </div><p class="dim" style="margin:12px 0 0;font-size:12px">Each target also has its own AI rule: off, local models only, or any model.</p></section>`;
+  } else if (S.cfg === "keys") {
+    body = `<section class="panel"><span class="ptitle">Data source API keys</span><div class="provs">
+      ${DATA_KEYS.map(([id, n, d]) => `<div class="p" style="grid-template-columns:2ch minmax(0,14ch) minmax(0,1fr) auto">
+        <span class="${S.keysSet[id] ? "ok" : "dim"}">●</span><span>${n}</span><span class="u">${d}</span>
+        <span class="btns">${S.keyEdit === id ? `<input type="password" id="key-${id}" placeholder="paste key" style="width:12rem" aria-label="${n} key"><button class="btn small primary" data-act="key-save" data-id="${id}">Save</button>` :
+          S.keysSet[id] ? `<span class="muted" style="font-size:12px">in keychain</span><button class="btn small" data-act="key-del" data-id="${id}">Remove</button>` : `<button class="btn small" data-act="key-edit" data-id="${id}">Set key</button>`}</span></div>`).join("")}
+      </div><p class="dim" style="margin:12px 0 0;font-size:12px">Keys live in your system keychain. They never go on the command line, so they don't end up in shell history.</p></section>`;
+  } else if (S.cfg === "speed") {
+    const s = S.speed;
+    body = `<section class="panel"><span class="ptitle">Speed & limits</span><div class="formgrid">
+      <label class="f">Max requests per second, all scans<input type="number" id="sp-g" data-bind="speed.global" data-num value="${s.global}"></label>
+      <label class="f">Max per host<input type="number" id="sp-h" data-bind="speed.perHost" data-num value="${s.perHost}"></label>
+      <label class="f">Open connections<input type="number" id="sp-c" data-bind="speed.conc" data-num value="${s.conc}"></label>
+      <label class="f">Timeout (seconds)<input type="number" id="sp-t" data-bind="speed.timeout" data-num value="${s.timeout}"></label>
+      <label class="f">Retries<input type="number" id="sp-r" data-bind="speed.retries" data-num value="${s.retries}"></label>
+      </div><label class="check" style="margin-top:14px"><input type="checkbox" data-act="backoff" ${s.backoff ? "checked" : ""}><span>Slow down automatically on 429 and 503<small>Speeds back up once the target recovers</small></span></label>
+      <p class="dim" style="margin:12px 0 0;font-size:12px">A target's own rate limit always wins when it's lower.</p></section>`;
+  } else if (S.cfg === "resolvers") {
+    body = `<section class="panel"><span class="ptitle">DNS resolvers</span><div class="tw"><table class="t"><thead><tr><th>Resolver</th><th>Health</th><th>Latency</th><th>Notes</th></tr></thead><tbody>
+      ${[["1.1.1.1","ok",12,""],["8.8.8.8","ok",18,""],["9.9.9.9","ok",21,""],["208.67.222.222","slow",140,"used less"],["10.0.0.53","failing","—","returned fake answers for random names, dropped"]].map(([r, h, l, n]) => `<tr><td>${r}</td><td class="${h === "ok" ? "ok" : h === "slow" ? "warn" : "bad"}">${h}</td><td>${l}${l !== "—" ? " ms" : ""}</td><td class="muted">${n}</td></tr>`).join("")}
+      </tbody></table></div><div class="btns" style="margin-top:12px"><button class="btn" data-act="toast" data-msg="Prototype: would re-test every resolver">Test all</button><button class="btn" data-act="toast" data-msg="Prototype: would add a resolver">+ Add resolver</button></div></section>`;
+  } else if (S.cfg === "proxy") {
+    body = `<section class="panel"><span class="ptitle">Send web traffic through Burp or Caido</span><div class="stack" style="gap:12px">
+      <label class="check"><input type="checkbox" data-act="proxy" ${S.proxy.on ? "checked" : ""}><span>Use a proxy<small>Requests still pass the scope check first</small></span></label>
+      <label class="f">Proxy address<input type="text" id="px-addr" data-bind="proxy.addr" value="${esc(S.proxy.addr)}" ${S.proxy.on ? "" : "disabled"}></label>
+      <p class="dim" style="margin:0;font-size:12px">Applies to http.probe, the HTTP request tool and "Send to Burp". Port scans and DNS never go through it.</p></div></section>`;
+  } else if (S.cfg === "look") {
+    body = `<section class="panel"><span class="ptitle">Appearance · try it, this one works</span><div class="stack" style="gap:14px">
+      <div class="field-row"><span class="muted" style="min-width:10ch">Colors</span><div class="seg">${[["system","Follow system"],["forge","Forge (dark)"],["daylight","Daylight (light)"],["contrast","High contrast"]].map(([k, l]) => `<button class="${S.skin === k ? "on" : ""}" data-act="skin" data-v="${k}">${l}</button>`).join("")}</div></div>
+      <div class="field-row"><span class="muted" style="min-width:10ch">Density</span><div class="seg">${[["comfortable","Comfortable"],["compact","Compact"]].map(([k, l]) => `<button class="${S.density === k ? "on" : ""}" data-act="density" data-v="${k}">${l}</button>`).join("")}</div></div>
+      <p class="dim" style="margin:0;font-size:12px">In the real app this follows your terminal's colors by default.</p></div></section>`;
+  } else if (S.cfg === "keybind") {
+    body = `<section class="panel"><span class="ptitle">Keyboard</span><div class="helpgrid" style="padding:0;max-height:none">${helpRows()}</div></section>`;
+  } else {
+    body = `<section class="panel"><span class="ptitle">Storage</span><dl class="kv"><dt>folder</dt><dd>~/.local/share/reconforge</dd>
+      ${ORDER.map(x => `<dt>${esc(x)}</dt><dd>${{acme:"182 MB",globex:"41 MB",initech:"1.4 GB"}[x] || "2 MB"}</dd>`).join("")}</dl>
+      <div class="formgrid" style="margin-top:14px"><label class="f">Keep stored responses for<select id="st-keep"><option>30 days</option><option selected>90 days</option><option>1 year</option><option>forever</option></select></label></div>
+      <div class="btns" style="margin-top:12px"><button class="btn" data-act="toast" data-msg="Prototype: would delete responses older than 90 days">Clean up old data</button></div></section>`;
+  }
+  return `
+  <div class="side">
+    <aside class="stack" style="gap:10px"><h1>Settings</h1>
+      <nav class="cfgnav">${CFG.map(([id, l]) => `<button class="${S.cfg === id ? "on" : ""}" data-act="cfg" data-id="${id}">${l}</button>`).join("")}</nav></aside>
+    <section class="stack">${body}</section>
+  </div>`;
+};
+function helpRows() {
+  return [["1 – 9","Switch tab"],["Ctrl K","Command palette: tools, scans, screens"],["N","New scan"],["H","History"],["/","Search or filter the current list"],["↑ ↓ or j k","Move in lists"],["↵","Open or run"],["Esc","Close, or go back"],["P / C","Pause / cancel a running scan"],["+ / −","Faster / slower"],["← →","Report sections"],["I T X S","Inbox: interesting, tested, ignore, snooze"],["?","This help"]]
+    .map(([k, d]) => `<span>${k.split(" ").map(x => ["or","/","–"].includes(x) ? `<span class="dim"> ${x} </span>` : kbd(x)).join("")}</span><span class="muted">${d}</span>`).join("");
+}
+
+/* ───────────────────────── chrome: tabs, keys, status ───────────────────────── */
+const TABS = [["new-scan","New scan"],["running","Running"],["history","History"],["targets","Targets"],["assets","Assets"],["inbox","Inbox"],["tools","Tools"],["ai","AI"],["config","Settings"]];
+function renderTabs() {
+  $("#tabs").innerHTML = TABS.map(([id, l], i) => {
+    const on = S.view === id || (S.view === "report" && id === "history");
+    const badge = id === "running" ? `<span class="badge live" data-badge="running" ${RUNNING.length ? "" : "hidden"}>${RUNNING.length}</span>` :
+      id === "inbox" ? `<span class="badge" data-badge="inbox" ${S.inbox.some(x => !x.done) ? "" : "hidden"}>${S.inbox.filter(x => !x.done).length}</span>` : "";
+    return `<button class="tab ${on ? "on" : ""}" data-act="go" data-v="${id}" ${on ? 'aria-current="page"' : ""}><span class="tk">${i + 1}</span>${l}${badge}</button>`;
+  }).join("");
+}
+function updateBadges() {
+  const r = $('[data-badge="running"]'); if (r) { r.textContent = RUNNING.length; r.hidden = !RUNNING.length; }
+  const n = S.inbox.filter(x => !x.done).length, b = $('[data-badge="inbox"]'); if (b) { b.textContent = n; b.hidden = !n; }
+}
+function keysFor() {
+  const r = RUNNING.find(x => x.id === S.runSel);
+  return {
+    "new-scan":[["↵","Start scan","start"],["D","Dry run","dry"],["H","History","hist"],["Ctrl K","Commands","palette"],["?","Help","help"]],
+    running: RUNNING.length ? [["P", r?.paused ? "Resume" : "Pause","pause"],["C","Cancel","cancel-ask"],["+ −","Speed"],["Esc","Back (scan keeps running)","back"]] : [["N","New scan","newscan"],["H","History","hist"]],
+    history:[["↑↓","Move"],["↵","Open report"],["/","Search","search"],["N","New scan","newscan"]],
+    report:[["← →","Sections"],["R","Run again","again"],["Esc","Back to history","back"]],
+    targets:[["A","Add scope rule","addrule"],["T","Test a host","testhost"],["R","Scan this target","tgtscan"]],
+    assets:[["/","Query","search"],["↑↓","Move"],["Ctrl K","Commands","palette"]],
+    inbox:[["↑↓","Move"],["I","Interesting"],["T","Tested"],["X","Ignore"],["S","Snooze 7 days"]],
+    tools:[["↑↓","Pick tool"],["↵","Run","runtool"],["Ctrl K","All tools","palette"]],
+    ai:[["↵","Send"],["Esc","Leave the input","blur"]],
+    config:[["↑↓","Section"],["?","Help","help"]],
+  }[S.view] || [];
+}
+function renderKeys() {
+  $("#keys").innerHTML = keysFor().map(([k, l, a]) => a ? `<button class="k" data-act="key" data-k="${a}">${k.split(" ").map(kbd).join("")} ${l}</button>` : `<span class="k static">${k.split(" ").map(kbd).join("")} ${l}</span>`).join("");
+}
+function renderStatus() {
+  $("#status").innerHTML = `<span><span class="dot" id="st-dot"></span><b id="st-run"></b></span><span id="st-rate"></span><span>scope <b>strict</b></span><span>AI today <b id="st-ai"></b></span><span class="grow"></span><span>reconforge 2.0.0-prototype</span>`;
+  updateStatus();
+}
+function updateStatus() {
+  const n = RUNNING.filter(r => !r.paused).length;
+  const dot = $("#st-dot"); if (!dot) return;
+  dot.className = "dot" + (n ? " on" : "");
+  $("#st-run").textContent = RUNNING.length ? `${RUNNING.length} running${RUNNING.length - n ? ` (${RUNNING.length - n} paused)` : ""}` : "idle";
+  const rate = RUNNING.filter(r => !r.paused).reduce((a, r) => a + Math.round(r.rate * (0.7 + Math.random() * 0.3)), 0);
+  $("#st-rate").innerHTML = `<b>${rate}</b> req/s`;
+  $("#st-ai").textContent = "$" + S.aiSpend.toFixed(2);
+}
+
+/* ───────────────────────── render + routing ───────────────────────── */
+function render() {
+  main.innerHTML = S.view === "report" ? viewReport() : VIEWS[S.view]();
+  renderTabs(); renderKeys(); updateStatus();
+  if (S.view === "ai") refreshChat();
+}
+let hashLock = null;
+function setView(v, opts = {}) {
+  if (opts.reportId) S.reportId = opts.reportId;
+  S.view = v;
+  const h = v === "report" ? "report-" + S.reportId : v;
+  if (location.hash.slice(1) !== h) { hashLock = h; location.hash = h; }
+  render();
+  if (!opts.keepScroll) term.scrollIntoView({block:"nearest"});
+}
+function applyHash() {
+  const h = location.hash.slice(1); if (h === hashLock) { hashLock = null; return; }
+  const m = /^report-(\d+)$/.exec(h);
+  if (m && findScan(+m[1])) { S.view = "report"; S.reportId = +m[1]; }
+  else if (VIEWS[h]) S.view = h;
+  else S.view = "new-scan";
+  render();
+}
+window.addEventListener("hashchange", applyHash);
+function openReport(id, tab = "summary") { S.reportTab = tab; setView("report", {reportId:id}); }
+
+/* ───────────────────────── scans (simulated) ───────────────────────── */
+function feedLine(r) {
+  const a = assetsFor(r.target), x = a[Math.floor(Math.random() * a.length)], d = domainOf(r.target);
+  const active = r.mods.find((m, i) => m.p < 100 && (i === 0 || r.mods[i - 1].p >= 25)) || r.mods[r.mods.length - 1];
+  const L = {
+    "passive.subdomains":[`crt.sh +${3 + Math.floor(Math.random() * 30)} names`, `certspotter +${2 + Math.floor(Math.random() * 9)} names`, `wayback +${1 + Math.floor(Math.random() * 6)} names`],
+    "passive.urls":[`${100 + Math.floor(Math.random() * 400)} archived URLs for ${d}`], "passive.certs":[`certificate for ${x.host} issued ${1 + Math.floor(Math.random() * 30)} days ago`],
+    "dns.resolve":[`${x.host} → ${x.ip}`, `wildcard *.${d} detected, ${8 + Math.floor(Math.random() * 20)} answers dropped`],
+    "dns.brute":[`hit ${["vpn","git","sso","backup"][Math.floor(Math.random() * 4)]}.${d}`], "dns.permute":[`hit ${x.host.replace(".", "-v2.")}`],
+    "scope.gate":[`skipped blog.${d} (out of scope)`, `${x.host} in scope`],
+    "port.scan":[`open ${x.host}:${x.port}/tcp`, `skipped CDN edge 203.0.113.${200 + Math.floor(Math.random() * 50)}`],
+    "http.probe":[`${x.code} https://${x.host}${x.port !== 443 ? ":" + x.port : ""}  "${x.title}"`],
+    "tls.inspect":[`SAN ci-internal.${d} → in scope, queued`, `${x.host} cert expires in ${x.tls ? x.tls.days : 90} days`],
+    "tech.detect":[`${x.host}: ${x.tech.join(", ")}`], "takeover.check":[`${x.host}: CNAME ok`, `docs.${d}: unclaimed GitHub Pages site`],
+    "js.extract":[`${x.host}/static/app.js: ${5 + Math.floor(Math.random() * 40)} endpoints`], "screenshot":[`${x.host} captured`],
+    "score":[`${x.host} scored ${x.score}`], "ai.triage":[`${x.host}: ${x.why[0]}`],
+  }[active.id] || ["working"];
+  return [active.id, L[Math.floor(Math.random() * L.length)]];
+}
+function feedPush(r, mod, text) { r.feed.unshift({t:clock(), mod, text}); if (r.feed.length > 60) r.feed.length = 60; }
+function makeScan(target, preset, mods, speed = 1) {
+  const r = {id:nextId++, target, preset, started:Date.now(), mods:mods.map(id => ({id, p:0})), paused:false, rate:Math.min(S.rate || TARGETS[target].rate, TARGETS[target].rate), speed, feed:[]};
+  feedPush(r, "scan", `started ${presetOf(preset).name.toLowerCase()} on ${target} · ${mods.length} steps · max ${r.rate} req/s`);
+  RUNNING.push(r); return r;
+}
+function startScan() {
+  const t = TARGETS[S.target]; if (requiredLevel() > t.level) return;
+  const r = makeScan(S.target, S.preset, currentMods());
+  S.runSel = r.id; S.showDry = false;
+  setView("running"); toast(`Started scan #${r.id} on ${S.target}`);
+}
+function finishScan(r, status) {
+  RUNNING.splice(RUNNING.indexOf(r), 1);
+  const t = TARGETS[r.target], f = overall(r) / 100, same = HISTORY.find(h => h.target === r.target && h.preset === r.preset && h.status === "done");
+  const rec = {id:r.id, target:r.target, preset:r.preset, started:"Today " + new Date(r.started).toTimeString().slice(0, 5), took:fmtDur(Date.now() - r.started), status,
+    hosts:Math.max(1, Math.round((t.hosts || 12) * (status === "done" ? 1 : f))), apps:r.mods.some(m => m.id === "http.probe") ? Math.round((t.apps || 5) * (status === "done" ? 1 : f)) : 0,
+    services:r.mods.some(m => m.id === "port.scan" || m.id === "http.probe") ? Math.round((t.services || 5) * (status === "done" ? 1 : f)) : 0,
+    add:status === "done" ? (same ? Math.floor(Math.random() * 3) : (t.hosts || 5)) : 0, chg:status === "done" && same ? Math.floor(Math.random() * 2) : 0, del:0,
+    since:status === "done" ? (same ? same.id : null) : null, note:status === "cancelled" ? `Cancelled by you at ${overall(r)}%. Results up to that point were kept.` : ""};
+  if (!t.hosts) { t.hosts = rec.hosts; t.services = rec.services; t.apps = rec.apps; }
+  HISTORY.unshift(rec);
+  if (S.cancelAsk === r.id) S.cancelAsk = null;
+  toast(`Scan #${r.id} on ${r.target} ${status === "done" ? "finished" : "cancelled"}`, {label:"View report", fn:() => openReport(r.id)});
+}
+function tick() {
+  let changed = false;
+  for (const r of [...RUNNING]) {
+    if (r.paused) continue;
+    const t = TARGETS[r.target], sp = r.speed * Math.max(.15, r.rate / t.rate);
+    r.mods.forEach((m, i) => {
+      if (m.p >= 100) return;
+      const prev = i ? r.mods[i - 1] : null;
+      if (prev && prev.p < 25) return;
+      const cap = !prev || prev.p >= 100 ? 100 : prev.p;
+      m.p = Math.min(cap, m.p + (2 + Math.random() * 5) * sp);
+      if (m.p > 99.4 && cap === 100) m.p = 100;
+    });
+    if (Math.random() < .6) feedPush(r, ...feedLine(r));
+    if (r.mods.every(m => m.p >= 100)) { finishScan(r, "done"); changed = true; }
+  }
+  if (changed && ["running","new-scan","history"].includes(S.view)) render();
+  else updateLive();
+  updateBadges(); updateStatus();
+}
+function updateLive() {
+  for (const r of RUNNING) {
+    const p = overall(r);
+    $$(`[data-live="pct-${r.id}"]`).forEach(el => el.textContent = p + "%");
+    $$(`[data-live="bar-${r.id}"]`).forEach(el => el.innerHTML = bar(p, 16));
+    $$(`[data-live="st-${r.id}"]`).forEach(el => el.textContent = r.paused ? "paused" : "running");
+    $$(`[data-live="el-${r.id}"]`).forEach(el => el.textContent = fmtDur(Date.now() - r.started));
+    if (S.view === "running" && S.runSel === r.id) {
+      r.mods.forEach((m, i) => {
+        const row = $(`[data-live="m-${r.id}-${i}"]`); if (!row) return;
+        const st = modState(r, m, i); row.className = "mod " + st;
+        row.children[1].innerHTML = bar(m.p);
+        row.children[2].textContent = st === "done" ? "done" : st === "wait" ? "wait" : Math.floor(m.p) + "%";
+        row.children[3].textContent = modOut(r, m);
+      });
+      const feed = $("#feed"); if (feed) feed.innerHTML = feedHtml(r);
+    }
+  }
+}
+
+/* ───────────────────────── toasts + overlays ───────────────────────── */
+function toast(msg, action) {
+  const el = document.createElement("div"); el.className = "toast";
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  if (action) { const b = document.createElement("button"); b.className = "btn small"; b.textContent = action.label; b.onclick = () => { action.fn(); el.remove(); }; el.appendChild(b); }
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), action ? 7000 : 3500);
+}
+const overlay = $("#overlay");
+let palItems = [], palSel = 0, lastFocus = null;
+function paletteItems() {
+  const it = [];
+  TABS.forEach(([id, l]) => it.push({l:`go ${l.toLowerCase()}`, h:"Open tab", run:() => setView(id)}));
+  ORDER.forEach(id => ["quick","standard","passive"].forEach(p => it.push({l:`run ${p} on ${id}`, h:"Start a scan", run:() => { S.target = id; S.preset = p; S.rate = TARGETS[id].rate; startScan(); }})));
+  TOOLS.forEach(t => it.push({l:`tool ${t.name.toLowerCase()}`, h:t.d, run:() => { S.tool = t.id; S.toolOut = null; setView("tools"); }}));
+  HISTORY.slice(0, 8).forEach(s => it.push({l:`report #${s.id} ${s.target}`, h:`${s.preset} · ${s.started}`, run:() => openReport(s.id)}));
+  ORDER.forEach(id => it.push({l:`target ${id}`, h:"Scope and rules", run:() => { S.tgtSel = id; setView("targets"); }}));
+  it.push({l:"new target", h:"Create a target", run:() => { S.nt.open = true; setView("new-scan"); setTimeout(() => $("#nt-name")?.focus(), 0); }});
+  CFG.forEach(([id, l]) => it.push({l:`settings ${l.toLowerCase()}`, h:"Settings", run:() => { S.cfg = id; setView("config"); }}));
+  it.push({l:"settings add ai provider", h:"Any provider or an OpenAI-compatible URL", run:() => { S.cfg = "ai"; S.addProv.open = true; setView("config"); }});
+  it.push({l:"help keyboard shortcuts", h:"?", run:openHelp});
+  return it;
+}
+function fuzzy(q, s) { if (!q) return 1; q = q.toLowerCase(); s = s.toLowerCase(); const i0 = s.indexOf(q); if (i0 >= 0) return 100 - i0; let j = 0; for (const c of s) if (c === q[j]) j++; return j === q.length ? 10 : 0; }
+function openPalette(q = "") {
+  lastFocus = document.activeElement;
+  overlay.className = "overlay"; overlay.hidden = false;
+  overlay.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-label="Command palette"><div class="dh"><span>Command palette</span><span>${kbd("↑↓")} ${kbd("↵")} ${kbd("Esc")}</span></div>
+    <input type="text" id="pal-in" placeholder="Type a command, tool, target or scan…" value="${esc(q)}" autocomplete="off" aria-label="Command"><div class="pal" id="pal-list"></div></div>`;
+  const inp = $("#pal-in"); inp.focus(); inp.select(); palSel = 0; fillPalette(q);
+  inp.addEventListener("input", () => { palSel = 0; fillPalette(inp.value); });
+  inp.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); palSel = Math.min(palItems.length - 1, palSel + 1); fillPalette(inp.value, true); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); palSel = Math.max(0, palSel - 1); fillPalette(inp.value, true); }
+    else if (e.key === "Enter") { e.preventDefault(); runPal(palSel); }
+  });
+}
+function fillPalette(q, keep) {
+  if (!keep) palItems = paletteItems().map(x => ({...x, sc:fuzzy(q.trim(), x.l)})).filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc).slice(0, 40);
+  $("#pal-list").innerHTML = palItems.length ? palItems.map((x, i) => `<button class="${i === palSel ? "on" : ""}" data-act="pal-run" data-i="${i}"><span>${i === palSel ? '<span class="hot">▸ </span>' : "  "}${esc(x.l)}</span><small>${esc(x.h)}</small></button>`).join("") : `<p class="muted" style="padding:8px 10px;margin:0">No command matches.</p>`;
+  $("#pal-list .on")?.scrollIntoView({block:"nearest"});
+}
+function runPal(i) { const x = palItems[i]; if (!x) return; closeOverlay(); x.run(); }
+function openHelp() {
+  lastFocus = document.activeElement;
+  overlay.className = "overlay"; overlay.hidden = false;
+  overlay.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-label="Keyboard help"><div class="dh"><span>Keyboard</span><button class="btn small" data-act="close-overlay">Close ${kbd("Esc")}</button></div><div class="helpgrid">${helpRows()}</div></div>`;
+  $(".dialog button", overlay).focus();
+}
+function closeOverlay() { overlay.hidden = true; overlay.innerHTML = ""; if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); }
+overlay.addEventListener("click", e => { if (e.target === overlay) closeOverlay(); });
+
+/* ───────────────────────── actions ───────────────────────── */
+function setPath(obj, path, val) { const ks = path.split("."); let o = obj; for (let i = 0; i < ks.length - 1; i++) o = (o[ks[i]] ??= {}); o[ks[ks.length - 1]] = val; }
+const ACT = {
+  go: d => { if (d.v === "running" && !RUNNING.find(r => r.id === S.runSel) && RUNNING[0]) S.runSel = RUNNING[0].id; setView(d.v); },
+  report: d => openReport(+d.id),
+  rtab: d => { S.reportTab = d.id; render(); },
+  "pick-target": d => { S.target = d.id; S.rate = TARGETS[d.id].rate; S.nt.open = false; if (S.ports === "top1000" && TARGETS[d.id].level < 3) S.ports = "top100"; render(); },
+  "nt-toggle": () => { S.nt.open = !S.nt.open; S.nt.err = ""; render(); if (S.nt.open) $("#nt-name")?.focus(); },
+  "go-target": d => { S.tgtSel = d.id; setView("targets"); },
+  preset: (d, el) => { if (el.classList.contains("locked")) { toast(`${S.target} allows up to ${LEVELS[TARGETS[S.target].level]} intensity`); return; } S.preset = d.id; render(); },
+  ports: d => { S.ports = d.v; render(); },
+  mod: d => { S.custom.has(d.id) ? S.custom.delete(d.id) : S.custom.add(d.id); render(); },
+  opt: d => { S[d.id] = !S[d.id]; render(); },
+  dry: () => { S.showDry = !S.showDry; render(); },
+  start: () => startScan(),
+  runsel: d => { S.runSel = +d.id; S.cancelAsk = null; setView("running"); },
+  pause: () => { const r = RUNNING.find(x => x.id === S.runSel); if (!r) return; r.paused = !r.paused; feedPush(r, "scan", r.paused ? "paused by you" : "resumed"); render(); },
+  rate: d => { const r = RUNNING.find(x => x.id === S.runSel); if (!r) return; const max = TARGETS[r.target].rate;
+    const next = +d.d > 0 ? Math.min(max, Math.ceil(r.rate * 1.5)) : Math.max(1, Math.floor(r.rate / 1.5));
+    if (+d.d > 0 && r.rate >= max) { toast(`${r.target}'s rules cap speed at ${max} req/s`); return; }
+    r.rate = next; feedPush(r, "scan", `speed set to ${next} req/s`); render(); },
+  "cancel-ask": () => { S.cancelAsk = S.runSel; render(); },
+  "cancel-no": () => { S.cancelAsk = null; render(); },
+  "cancel-yes": () => { const r = RUNNING.find(x => x.id === S.runSel); if (r) finishScan(r, "cancelled"); S.cancelAsk = null; render(); },
+  "run-again": (d, el, e) => { e.stopPropagation(); const s = findScan(+d.id); S.target = s.target; S.preset = s.preset; S.rate = TARGETS[s.target].rate; setView("new-scan"); toast(`Set up ${s.preset} on ${s.target}. Press Start scan when ready.`); },
+  export: d => { const s = findScan(S.reportId); toast(`Prototype: would save ${s.target}-scan-${s.id}.${d.f}`); },
+  "open-asset": d => { S.aTarget = d.t; S.aSel = d.h; S.aQuery = ""; setView("assets"); },
+  "tgt-sel": d => { S.tgtSel = d.id; S.importOpen = false; render(); },
+  "new-target-from-targets": () => { S.nt.open = true; setView("new-scan"); $("#nt-name")?.focus(); },
+  "import-toggle": () => { S.importOpen = !S.importOpen; render(); },
+  import: d => { S.importOpen = false; render(); toast(`Prototype: would import ${S.tgtSel}'s scope from ${d.src}`); },
+  "tgt-scan": () => { S.target = S.tgtSel; S.rate = TARGETS[S.tgtSel].rate; setView("new-scan"); },
+  "rule-del": d => { TARGETS[S.tgtSel].scope.splice(+d.i, 1); render(); },
+  "asset-sel": d => { S.aSel = d.h; $("#asset-table").innerHTML = assetTable(); $("#asset-detail").innerHTML = assetDetail(); },
+  atab: d => { S.aTab = d.id; $("#asset-detail").innerHTML = assetDetail(); },
+  atag: d => { S.tags[d.h] = S.tags[d.h] === d.v ? "" : d.v; $("#asset-table").innerHTML = assetTable(); $("#asset-detail").innerHTML = assetDetail(); },
+  q: d => { S.aQuery = (S.aQuery ? S.aQuery + " " : "") + d.q; const i = $("#a-query"); if (i) i.value = S.aQuery; $("#asset-table").innerHTML = assetTable(); $("#asset-detail").innerHTML = assetDetail(); },
+  "ask-ai": d => { S.chatTarget = S.aTarget; setView("ai"); const i = $("#chat-in"); if (i) { i.value = `What should I test first on ${d.h}?`; i.focus(); } },
+  copy: d => { const ok = () => toast("Copied " + d.v); try { navigator.clipboard.writeText(d.v).then(ok, () => toast("Copy isn't allowed here. The URL is " + d.v)); } catch { toast("The URL is " + d.v); } },
+  toast: d => toast(d.msg),
+  "in-sel": d => { S.inSel = +d.i; render(); },
+  "in-do": (d, el, e) => { e.stopPropagation(); inboxDo(+d.i, d.k); },
+  "in-undo": () => { const last = [...S.inbox].reverse().find(x => x.done); if (last) { last.done = null; render(); updateBadges(); } },
+  tool: d => { S.tool = d.id; render(); },
+  "chat-chip": d => sendChat(d.q),
+  "chat-clear": () => { S.chat = []; render(); },
+  "propose-run": d => { const m = S.chat[+d.i]; m.propose.state = "Started as a scan. See the Running tab."; const r = makeScan("acme", "custom", ["scope.gate","port.scan","http.probe","score"]); S.runSel = r.id; refreshChat(); toast(`Started scan #${r.id} on acme`, {label:"Watch it", fn:() => setView("running")}); },
+  "propose-dismiss": d => { S.chat[+d.i].propose.state = "Dismissed."; refreshChat(); },
+  cfg: d => { S.cfg = d.id; render(); },
+  "ap-open": () => { S.addProv = {open:true, preset:"anthropic", name:"", url:PROVIDER_PRESETS[0].url, key:"", err:""}; render(); $("#ap-preset")?.focus(); },
+  "ap-cancel": () => { S.addProv.open = false; render(); },
+  "prov-test": d => { const p = S.providers[+d.i]; p.status = "testing"; render();
+    setTimeout(() => { if (p.preset === "custom" && /internal/.test(p.url)) { p.status = "unreachable"; toast(`${p.name}: couldn't connect to ${p.url}`); } else { p.status = "ok"; p.ms = 80 + (hashNum(p.name) % 600); toast(`${p.name}: connected · ${p.ms} ms · tool calling works`); } if (S.view === "config") render(); }, 900); },
+  "prov-del": d => { const p = S.providers.splice(+d.i, 1)[0]; render(); toast(`Removed ${p.name}`); },
+  "key-edit": d => { S.keyEdit = d.id; render(); $(`#key-${d.id}`)?.focus(); },
+  "key-save": d => { const v = $(`#key-${d.id}`)?.value.trim(); if (!v) { toast("Paste a key first"); return; } S.keysSet[d.id] = true; S.keyEdit = null; render(); toast("Saved to your system keychain"); },
+  "key-del": d => { S.keysSet[d.id] = false; render(); },
+  pv: d => { S.privacy[d.id] = !S.privacy[d.id]; },
+  backoff: () => { S.speed.backoff = !S.speed.backoff; },
+  proxy: () => { S.proxy.on = !S.proxy.on; render(); },
+  skin: d => { S.skin = d.v; store.set("skin", d.v); applySkin(); render(); },
+  density: d => { S.density = d.v; store.set("density", d.v); applySkin(); render(); },
+  palette: () => openPalette(),
+  help: () => openHelp(),
+  "close-overlay": () => closeOverlay(),
+  "pal-run": d => runPal(+d.i),
+  key: d => KEYACT[d.k]?.(),
+};
+const KEYACT = {
+  start: () => startScan(), dry: () => ACT.dry(), hist: () => setView("history"), palette: () => openPalette(), help: () => openHelp(),
+  pause: () => ACT.pause(), "cancel-ask": () => ACT["cancel-ask"](), back: () => { if (S.view === "report") setView("history"); else setView("new-scan"); },
+  newscan: () => setView("new-scan"), search: () => $("[data-search]")?.focus(), again: () => ACT["run-again"]({id:S.reportId}, null, {stopPropagation(){}}),
+  addrule: () => $("#rule-text")?.focus(), testhost: () => { const i = $("#scope-test"); i?.focus(); i?.select(); }, tgtscan: () => ACT["tgt-scan"](),
+  runtool: () => runTool(), blur: () => document.activeElement?.blur(),
+};
+function inboxDo(i, k) {
+  const open = S.inbox.filter(x => !x.done), x = open[i]; if (!x) return;
+  x.done = {i:"interesting", t:"tested", x:"ignored", s:"snoozed 7d"}[k];
+  if (k === "i" || k === "t" || k === "x") S.tags[x.host] = {i:"interesting", t:"tested", x:"ignored"}[k];
+  render(); updateBadges();
+}
+function applySkin() {
+  if (S.skin === "system") term.removeAttribute("data-skin"); else term.setAttribute("data-skin", S.skin);
+  term.setAttribute("data-density", S.density);
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
+  if (el.matches('input[type="checkbox"]')) return; /* handled on change */
+  if (el.tagName === "BUTTON" && el.type === "submit" && el.form) return;
+  const f = ACT[el.dataset.act]; if (f) f(el.dataset, el, e);
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.matches('input[type="checkbox"][data-act]')) { ACT[el.dataset.act]?.(el.dataset, el, e); return; }
+  if (el.dataset.actChange === "ap-preset") { const p = PROVIDER_PRESETS.find(x => x.id === el.value); S.addProv.preset = p.id; S.addProv.url = p.url; S.addProv.err = ""; render(); $("#ap-preset")?.focus(); return; }
+  if (el.dataset.tbind) { const t = TARGETS[S.tgtSel]; t[el.dataset.tbind] = el.dataset.num != null ? Math.max(el.dataset.tbind === "level" ? 0 : 1, +el.value || 0) : el.value; if (S.target === S.tgtSel) S.rate = Math.min(S.rate, t.rate); toast(`Saved ${el.dataset.tbind} for ${S.tgtSel}`); if (el.tagName === "SELECT") render(); return; }
+  if (el.matches("select[data-bind]")) { setPath(S, el.dataset.bind, el.value); if (el.dataset.refresh) refresh(el.dataset.refresh); else if (el.dataset.rerender != null) render(); return; }
+  if (el.id === "rate") { const t = TARGETS[S.target]; const v = Math.max(1, Math.min(t.rate, +el.value || t.rate)); if (+el.value > t.rate) toast(`${S.target} allows up to ${t.rate} req/s`); S.rate = v; render(); }
+});
+document.addEventListener("input", e => {
+  const el = e.target; if (!el.dataset.bind || el.tagName === "SELECT") return;
+  if (el.id === "rate") return;
+  setPath(S, el.dataset.bind, el.dataset.num != null ? +el.value : el.value);
+  if (el.dataset.refresh) refresh(el.dataset.refresh);
+});
+function refresh(what) {
+  if (what === "hist") { S.histSel = 0; $("#hist-table").innerHTML = histTable(); }
+  else if (what === "scope") $("#scope-res").innerHTML = scopeResHtml();
+  else if (what === "assets") { $("#asset-table").innerHTML = assetTable(); $("#asset-detail").innerHTML = assetDetail(); }
+}
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  const id = e.target.id;
+  if (id === "nt-form") {
+    const name = S.nt.name.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    const rule = S.nt.scope.trim();
+    if (!name) S.nt.err = "Give the target a name.";
+    else if (TARGETS[name]) S.nt.err = `There's already a target called ${name}.`;
+    else if (!rule) S.nt.err = "Add at least one scope rule, like *.example.com.";
+    else {
+      const bb = S.nt.kind === "Bug bounty";
+      TARGETS[name] = {kind:S.nt.kind, where:bb ? "Platform not set" : S.nt.kind === "Pentest" ? "Client" : "Internal", scope:[["in", rule]], level:bb ? 2 : 3, rate:bb ? 10 : 100, header:"", ua:"ReconForge", ai:bb ? "any" : "local", hosts:0, services:0, apps:0, f:.2};
+      ORDER.push(name); S.target = name; S.rate = TARGETS[name].rate; S.nt = {open:false, name:"", kind:"Bug bounty", scope:"", err:""};
+      render(); toast(`Created target ${name}`); return;
+    }
+    render(); $("#nt-name")?.focus();
+  } else if (id === "rule-form") {
+    const v = S.ruleText.trim(); if (!v) { $("#rule-text").focus(); return; }
+    TARGETS[S.tgtSel].scope.push([S.ruleKind, v]); S.ruleText = ""; render(); $("#rule-text").focus();
+  } else if (id === "tool-form") runTool();
+  else if (id === "chat-form") { const i = $("#chat-in"); const v = i.value; i.value = ""; sendChat(v); i.focus(); }
+  else if (id === "prov-form") {
+    const ap = S.addProv, pp = PROVIDER_PRESETS.find(p => p.id === ap.preset);
+    const name = (ap.name.trim() || ap.preset).toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    if (!ap.url.trim()) { ap.err = "Base URL is required for a custom provider."; render(); return; }
+    if (!pp.local && !ap.key.trim()) { ap.err = "Paste an API key, or pick a local provider."; render(); return; }
+    if (S.providers.some(p => p.name === name)) { ap.err = `A provider called ${name} already exists.`; render(); return; }
+    S.providers.push({name, preset:ap.preset, url:ap.url.trim(), key:pp.local ? "none needed" : "system keychain", status:"not tested", ms:null});
+    S.addProv = {open:false, preset:"anthropic", name:"", url:"", key:"", err:""}; render(); toast(`Added ${name}. Press Test to check it.`);
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); overlay.hidden ? openPalette() : closeOverlay(); return; }
+  if (!overlay.hidden) { if (e.key === "Escape") { e.preventDefault(); closeOverlay(); } return; }
+  const tag = document.activeElement?.tagName;
+  const typing = ["INPUT","TEXTAREA","SELECT"].includes(tag);
+  if (typing) { if (e.key === "Escape") document.activeElement.blur(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (/^[1-9]$/.test(k)) { e.preventDefault(); ACT.go({v:TABS[+k - 1][0]}); return; }
+  if (k === "?") { e.preventDefault(); openHelp(); return; }
+  if (k === "/") { const s = $("[data-search]"); if (s) { e.preventDefault(); s.focus(); } return; }
+  if (k === "Escape") { if (S.view === "report") setView("history"); else if (S.view !== "new-scan") setView("new-scan"); return; }
+  if (k === "Enter" && document.activeElement?.matches("[data-act][tabindex]")) { e.preventDefault(); document.activeElement.click(); return; }
+  const v = S.view, lk = k.toLowerCase();
+  if (v === "new-scan") { if (k === "Enter" && !document.activeElement?.matches("button")) { e.preventDefault(); startScan(); } else if (lk === "d") ACT.dry(); else if (lk === "h") setView("history"); else if (lk === "n") {} return; }
+  if (lk === "n") { setView("new-scan"); return; }
+  if (lk === "h" && v !== "history") { setView("history"); return; }
+  if (v === "running") { if (lk === "p") ACT.pause(); else if (lk === "c") ACT["cancel-ask"](); else if (k === "+" || k === "=") ACT.rate({d:1}); else if (k === "-") ACT.rate({d:-1}); return; }
+  if (v === "history") { const n = histRows().length; if (k === "ArrowDown" || lk === "j") { e.preventDefault(); S.histSel = Math.min(n - 1, S.histSel + 1); refresh("hist2"); $("#hist-table").innerHTML = histTable(); }
+    else if (k === "ArrowUp" || lk === "k") { e.preventDefault(); S.histSel = Math.max(0, S.histSel - 1); $("#hist-table").innerHTML = histTable(); }
+    else if (k === "Enter") { const r = histRows()[S.histSel]; if (r) openReport(r.id); } return; }
+  if (v === "report") { const i = RTABS.findIndex(x => x[0] === S.reportTab); if (k === "ArrowRight") { S.reportTab = RTABS[(i + 1) % RTABS.length][0]; render(); } else if (k === "ArrowLeft") { S.reportTab = RTABS[(i + RTABS.length - 1) % RTABS.length][0]; render(); } else if (lk === "r") KEYACT.again(); return; }
+  if (v === "inbox") { const n = S.inbox.filter(x => !x.done).length; if (k === "ArrowDown" || lk === "j") { e.preventDefault(); S.inSel = Math.min(n - 1, S.inSel + 1); render(); } else if (k === "ArrowUp" || lk === "k") { e.preventDefault(); S.inSel = Math.max(0, S.inSel - 1); render(); } else if ("itxs".includes(lk) && lk.length === 1) inboxDo(S.inSel, lk); return; }
+  if (v === "assets") { const rows = assetRows(), i = rows.findIndex(r => r.host === S.aSel); if (k === "ArrowDown" || lk === "j") { e.preventDefault(); if (rows[i + 1]) ACT["asset-sel"]({h:rows[i + 1].host}); } else if (k === "ArrowUp" || lk === "k") { e.preventDefault(); if (rows[i - 1]) ACT["asset-sel"]({h:rows[i - 1].host}); } return; }
+  if (v === "targets") { if (lk === "a") { e.preventDefault(); KEYACT.addrule(); } else if (lk === "t") { e.preventDefault(); KEYACT.testhost(); } else if (lk === "r") KEYACT.tgtscan(); return; }
+  if (v === "tools") { const i = TOOLS.findIndex(t => t.id === S.tool); if (k === "ArrowDown" || lk === "j") { e.preventDefault(); S.tool = TOOLS[Math.min(TOOLS.length - 1, i + 1)].id; render(); } else if (k === "ArrowUp" || lk === "k") { e.preventDefault(); S.tool = TOOLS[Math.max(0, i - 1)].id; render(); } else if (k === "Enter") runTool(); return; }
+  if (v === "config") { const i = CFG.findIndex(c => c[0] === S.cfg); if (k === "ArrowDown" || lk === "j") { e.preventDefault(); S.cfg = CFG[Math.min(CFG.length - 1, i + 1)][0]; render(); } else if (k === "ArrowUp" || lk === "k") { e.preventDefault(); S.cfg = CFG[Math.max(0, i - 1)][0]; render(); } }
+});
+
+/* ───────────────────────── boot ───────────────────────── */
+(() => {
+  const r = makeScan("globex", "quick", presetOf("quick").mods, .35);
+  r.started = Date.now() - 74000;
+  r.mods.forEach((m, i) => { m.p = Math.max(0, [96, 70, 64, 30, 0, 0][i] || 0); });
+  ["crt.sh +41 names", "certspotter +9 names", "vpn.globex.example → 198.51.100.12", "skipped mail.globex.example (out of scope)", '200 https://vpn.globex.example  "SSL VPN portal"'].forEach((t, i) =>
+    r.feed.unshift({t:new Date(Date.now() - (5 - i) * 4000).toTimeString().slice(0, 8), mod:["passive.subdomains","passive.subdomains","dns.resolve","scope.gate","http.probe"][i], text:t}));
+  S.runSel = r.id;
+  applySkin();
+  const h = location.hash.slice(1);
+  if (h) applyHash(); else render();
+  setInterval(tick, 700);
+})();
+})();
+</script>
+
+</body></html>
