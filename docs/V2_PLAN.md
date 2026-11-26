@@ -17,7 +17,10 @@ ReconForge v2 is a clean rewrite. It ships as one fast binary with a full termin
 | 4 | Background scans | **Later.** In v2.0, scans run inside the dashboard. Quitting while a scan runs asks first. | The scan engine is kept separate from the screens, so a background service can be added later without a rewrite. |
 | 5 | Naming | A **target** is a name plus its scope plus its rules. | Neutral across bug bounty programs, client engagements and your own assets. |
 | 6 | Opening screen | **New scan.** A **History** button (key `H`) opens the History tab with every scan. | Decided on Nov 26. |
-| 7 | Dashboard layout | **Tabs along the top**, keys `1`–`9`. | Replaces the sidebar from the first ASCII draft. |
+| 7 | Dashboard layout | **Tabs along the top**, keys `1`–`7`. | Replaces the sidebar from the first ASCII draft. |
+| 8 | Dashboard style | **A real terminal UI**: character grid, box-drawing borders, `[x]` checkboxes, `( )` radio buttons, status bar. No web-style cards or buttons. | It's a CLI tool, so the prototype shows exactly what the Go app will draw. |
+| 9 | Simpler layout | **7 tabs**: Scan, Running, History, Targets, Tools, AI, Settings. **Inbox dropped**; new findings are marked *new* in History and reports. **Assets merged** into the report's Hosts tab. | Fewer places to look; each screen has one job. |
+| 10 | Mouse | **Full mouse support**: click tabs, buttons, rows and fields; the wheel scrolls lists, the live log and chat. Every action also has a key. | Bubble Tea mouse events, with click areas tracked by a zone helper (for example `lrstanley/bubblezone`). |
 
 ## Topics
 
@@ -37,43 +40,41 @@ ReconForge v2 is a clean rewrite. It ships as one fast binary with a full termin
 ## Terminal dashboard (in review)
 
 **Prototype:** https://claude.ai/artifact/QESHZHnvGGpiDTaRGfGPNo
-It's clickable and uses sample data. Nothing in it scans.
+It's drawn as a character grid, exactly like the Go TUI will draw it, and it adapts to the window width the way a real terminal app does (two columns when wide, stacked when narrow). Click anything, scroll lists with the wheel, or use the keys. Nothing scans; all data is sample data.
 A standalone copy is in [`v2-dashboard-prototype.html`](v2-dashboard-prototype.html), which opens in any browser.
 
 ### Decided
 
-- Typing `reconforge` opens the dashboard on **New scan**. The **History** button (or `H`) goes to the History tab.
-- **Tabs along the top**: `1` New scan · `2` Running · `3` History · `4` Targets · `5` Assets · `6` Inbox · `7` Tools · `8` AI · `9` Settings.
-- The bottom bar always shows the keys for the current screen. `Ctrl+K` opens the command palette anywhere. `?` shows help.
-- Arrow keys, vim keys (`j`/`k`) and the mouse all work. Scans keep running while you switch tabs.
+- Typing `reconforge` opens the dashboard on **Scan**. The **Open history** button (or `h`) goes to the History tab.
+- **Tabs along the top**: `1` Scan · `2` Running · `3` History · `4` Targets · `5` Tools · `6` AI · `7` Settings.
+- The line above the status bar always shows the keys for the current screen, and every key hint is clickable.
+- `ctrl+k` opens the command palette anywhere. `?` shows help. `esc` goes back.
+- The status bar shows running scans, current request rate, scope mode, AI spend, and messages (with an action button when useful, like "view report" when a scan finishes).
+- Text fields work like a terminal input: click or press a key to focus, `enter` to submit, `esc` to leave.
 
 ### Screens
 
 | Tab | What's on it |
 |---|---|
-| New scan | Pick a target (or create one), pick a pipeline (Passive / Quick / Standard / Deep / Custom), set options, dry run, start. Side panel: History button, recent scans, running scans. |
-| Running | Every running scan; per-step progress, live feed, pause, cancel, change speed. |
-| History | All scans with filters and search; what changed in each; open the report; run again. |
-| Report | Summary, top priorities, AI summary, collection notes; tabs for changes, hosts, web apps, TLS, notes; export md / html / json / csv. |
-| Targets | Scope rules (in / out, exclusions win), live "is this in scope?" tester, per-target rules, import scope from bug bounty platforms. |
-| Assets | Everything found, filtered with a short query (`tech:jenkins port:8443 score>60 new !tag:tested`); detail pane with stored response, headers, TLS, history, notes, AI. |
-| Inbox | New findings to go through one key at a time: interesting, tested, ignore, snooze. |
-| Tools | HTTP request, DNS, certificate, port check, quick subdomains, domain owner, IP owner, favicon hash, scope test, encode / decode, JWT, CIDR. |
-| AI | Copilot chat about a target's data. It can read the workspace but only proposes scans; you confirm each one. |
-| Settings | AI providers and per-role models, AI budget and privacy, data source keys, speed limits, DNS resolvers, proxy (Burp / Caido), appearance, keyboard, storage. |
+| Scan | Target (radio list, or create one), Pipeline (Passive / Quick / Standard / Deep / Custom, with steps shown), Options (AI triage, screenshots, speed), Start scan and Dry run. Right side: Open history button, recent scans, running scans. |
+| Running | Running scans on the left; for the selected scan: pause, cancel (with a confirm line), speed, every step with progress and counts, and a live log. |
+| History | Filters for target and status; table of every scan with what changed; click a row to open its report. |
+| Report | Summary (counts, what changed, top priorities, AI summary, collection notes), Changes, Hosts (filter + table + detail with the stored response, copy URL, send to Burp, ask AI), TLS. Run again; export md / html / json / csv. |
+| Targets | Target list; scope rules with add and delete; live "is this in scope?" test; rules (intensity, rate limit, header, user agent, AI allowed). |
+| Tools | HTTP request, DNS, certificate, port check, subdomains, domain owner, IP owner, favicon hash, scope test, decode, JWT, CIDR. One input line and the output below it. |
+| AI | Chat about a target's data. The AI reads the workspace through tools and only proposes scans; you confirm each one. Follows the target's AI rule (off / local only / any). |
+| Settings | AI models (providers, add any provider or a custom OpenAI-compatible URL, one model per role), API keys, Speed, Proxy, Look. |
 
 ### Rules the prototype already shows
 
-- A target's rules limit what any scan can do: max intensity (Deep is blocked on a bug bounty target set to normal), rate limit, required header, and whether AI is allowed (off / local models only / any model).
+- A target's rules limit what any scan can do: max intensity (Deep is blocked on a target set to normal), rate limit, required header, and whether AI is allowed.
 - Pipeline steps run at the same time and feed each other. For example, names found in certificates go back into the scan.
 - "What changed" compares a scan with the last scan of the same target that ran the same steps.
-- Any AI provider works: presets for Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Together, DeepSeek, Mistral, xAI, Fireworks, Ollama, LM Studio and vLLM, plus a custom OpenAI-compatible URL. Each role (triage, analyst, chat, vision) gets its own model.
-- API keys are stored in the system keychain, never passed on the command line.
+- API keys go to the system keychain, never on the command line.
 
 ### Open questions
 
-1. Keep the Inbox tab?
-2. Anything to add, move or drop on any screen?
+1. Anything to add, move or drop on any screen?
 
 ---
 
